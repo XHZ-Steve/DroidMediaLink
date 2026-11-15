@@ -11,16 +11,28 @@ import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
 import org.json.JSONObject
 
-internal data class ReleaseAsset(val version:String,val url:String,val size:Long,val digest:String)
+internal data class ReleaseAsset(val version:String,val url:String,val size:Long,val digest:String,val notes:String="")
 internal object ReleaseUpdates {
- fun newer(remote:String,current:String):Boolean {
+ private fun compare(remote:String,current:String):Int? {
   val syntax=Regex("v?[0-9]+(\\.[0-9]+){0,3}")
-  if(!syntax.matches(remote)||!syntax.matches(current))return false
-  val a=remote.removePrefix("v").split('.').map { it.toLongOrNull()?:return false }
-  val b=current.removePrefix("v").split('.').map { it.toLongOrNull()?:return false }
-  for(i in 0 until maxOf(a.size,b.size)) { val x=a.getOrElse(i){0};val y=b.getOrElse(i){0};if(x!=y)return x>y }
-  return false
+  if(!syntax.matches(remote)||!syntax.matches(current))return null
+  val a=remote.removePrefix("v").split('.').map { it.toLongOrNull()?:return null }
+  val b=current.removePrefix("v").split('.').map { it.toLongOrNull()?:return null }
+  for(i in 0 until maxOf(a.size,b.size)) { val result=a.getOrElse(i){0}.compareTo(b.getOrElse(i){0});if(result!=0)return result }
+  return 0
  }
+ fun newer(remote:String,current:String)=compare(remote,current)?.let{it>0}?:false
+ fun canInstall(remote:String,code:Long,current:String,currentCode:Long)=code>currentCode&&(compare(remote,current)?.let{it>=0}?:false)
+ data class InstalledVersion(val name:String,val code:Long)
+ @Suppress("DEPRECATION") fun installedVersion(context:Context):InstalledVersion {
+  val info=context.packageManager.getPackageInfo(context.packageName,0)
+  return InstalledVersion(info.versionName.orEmpty(),if(android.os.Build.VERSION.SDK_INT>=28)info.longVersionCode else info.versionCode.toLong())
+ }
+ fun releaseSummary(markdown:String):String=markdown
+  .replace(Regex("(?s)```.*?```"),"")
+  .replace(Regex("!?\\[([^]]*)\\]\\([^)]+\\)"),"$1")
+  .replace(Regex("(?m)^#{1,6}\\s*"),"")
+  .replace("**","").replace("`","").trim().take(4000)
  private fun connect(url:String):HttpsURLConnection {
   val connection=URL(url).openConnection() as HttpsURLConnection
   connection.connectTimeout=15000;connection.readTimeout=20000
@@ -28,19 +40,21 @@ internal object ReleaseUpdates {
   connection.setRequestProperty("Accept","application/vnd.github+json")
   return connection
  }
- suspend fun check():ReleaseAsset?=withContext(Dispatchers.IO) {
+ suspend fun check(context:Context):ReleaseAsset?=withContext(Dispatchers.IO) {
+  val current=installedVersion(context)
   val connection=connect("https://api.github.com/repos/XHZ-Steve/DroidMusicLink/releases/latest")
   try {
+   if(connection.responseCode==404)return@withContext null
    val bytes=connection.inputStream.use { input->val output=java.io.ByteArrayOutputStream();val buffer=ByteArray(8192)
     while(true){val n=input.read(buffer);if(n<0)break;require(output.size()+n<=1024*1024);output.write(buffer,0,n)};output.toByteArray() }
    val release=JSONObject(String(bytes,Charsets.UTF_8));val tag=release.getString("tag_name")
    require(Regex("v?[0-9]+(\\.[0-9]+){0,3}").matches(tag))
-   if(release.optBoolean("draft")||release.optBoolean("prerelease")||!newer(tag,BuildConfig.VERSION_NAME))return@withContext null
+   if(release.optBoolean("draft")||release.optBoolean("prerelease")||!newer(tag,current.name))return@withContext null
    val assets=release.getJSONArray("assets")
    for(i in 0 until assets.length()) {
     val asset=assets.getJSONObject(i);val name=asset.getString("name");val url=asset.getString("browser_download_url");val digest=asset.optString("digest");val size=asset.optLong("size")
     if(name.startsWith("DroidMediaLink-")&&name.endsWith("-android-test-signed.apk")&&url.startsWith("https://github.com/XHZ-Steve/DroidMusicLink/releases/download/")&&Regex("sha256:[a-fA-F0-9]{64}").matches(digest)&&size in 1..160L*1024*1024)
-     return@withContext ReleaseAsset(tag,url,size,digest.removePrefix("sha256:").lowercase())
+     return@withContext ReleaseAsset(tag,url,size,digest.removePrefix("sha256:").lowercase(),releaseSummary(release.optString("body")))
    }
    error("Missing verified APK")
   } finally { connection.disconnect() }
@@ -59,7 +73,9 @@ internal object ReleaseUpdates {
    } }
    require(count==asset.size&&hash.digest().joinToString(""){"%02x".format(it)}==asset.digest)
    @Suppress("DEPRECATION") val pkg=context.packageManager.getPackageArchiveInfo(partial.path,0)
-   require(pkg?.packageName==context.packageName&&newer(pkg.versionName.orEmpty(),BuildConfig.VERSION_NAME))
+   val current=installedVersion(context)
+   @Suppress("DEPRECATION") val code=if(pkg==null)0L else if(android.os.Build.VERSION.SDK_INT>=28)pkg.longVersionCode else pkg.versionCode.toLong()
+   require(pkg?.packageName==context.packageName&&canInstall(pkg.versionName.orEmpty(),code,current.name,current.code)&&compare(pkg.versionName.orEmpty(),asset.version)==0)
    if(destination.exists())check(destination.delete());check(partial.renameTo(destination));destination
   } finally { connection.disconnect();partial.delete() }
  }

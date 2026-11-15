@@ -1,5 +1,12 @@
 # Changelog
 
+## Android 1.1.0 build 4 — 2026-11-15
+
+- Read the installed package version from Android; increment versionCode to 4 and show the version/build in settings.
+- Keep release notes collapsed by default, present bounded readable text when expanded, and label the action Update.
+- Use a native Toast for no-update results; reject APKs with non-advancing build codes or mismatched release versions.
+- Verified a data-preserving upgrade from 0.1.0 (1) to 1.1.0 (4) on PLU110 and the real GitHub no-update Toast.
+
 ## 1.1.0 — 2026-11-15 · v1.1
 
 - Promote the current 64 validated Windows appearance/lyric/media preferences to factory defaults; preserve existing profiles and exclude identities, network addresses and window positions.

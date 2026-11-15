@@ -98,7 +98,8 @@ class MainActivity:ComponentActivity() {
  var confirmRevoke by remember { mutableStateOf<Pair<String,String>?>(null) }
  var help by remember { mutableStateOf<Int?>(null) }
  var recommendations by remember { mutableStateOf(!context.getSharedPreferences("onboarding",0).getBoolean("permissionsV2",false)) }
- var update by remember { mutableStateOf("") }
+ val installedVersion=remember(context){ReleaseUpdates.installedVersion(context)}
+ var updateNotesExpanded by remember { mutableStateOf(false) }
  var checking by remember { mutableStateOf(false) }
  var availableUpdate by remember { mutableStateOf<ReleaseAsset?>(null) }
  var downloadingUpdate by remember { mutableStateOf(false) }
@@ -185,18 +186,17 @@ class MainActivity:ComponentActivity() {
      
 
       TextButton(enabled=!checking&&!downloadingUpdate,onClick={checking=true;scope.launch {
-       try { availableUpdate=ReleaseUpdates.check();update=if(availableUpdate==null)context.getString(R.string.update_current) else "" }
+       try { updateNotesExpanded=false;availableUpdate=ReleaseUpdates.check(context);if(availableUpdate==null)android.widget.Toast.makeText(context,R.string.update_current,android.widget.Toast.LENGTH_SHORT).show() }
        catch(error:CancellationException){throw error}
-       catch(_:Exception){update=context.getString(R.string.update_error)}
+       catch(_:Exception){android.widget.Toast.makeText(context,R.string.update_error,android.widget.Toast.LENGTH_SHORT).show()}
        finally {checking=false}
       }}) { Text(stringResource(if(checking)R.string.update_checking else R.string.check_updates)) }
-      if(update.isNotEmpty())Text(update,style=MaterialTheme.typography.bodySmall)
 
      TextButton(onClick={help=R.string.privacy_help}) { Text(stringResource(R.string.privacy)) }
 
       FlowRow { TextButton(onClick={(context as MainActivity).exportPreferences()}) { Text(stringResource(R.string.export_settings)) };TextButton(onClick={(context as MainActivity).importPreferences()}) { Text(stringResource(R.string.import_settings)) };TextButton(onClick={confirmReset=true}) { Text(stringResource(R.string.reset_settings)) } }
      
-     Text("DroidMediaLink "+BuildConfig.VERSION_NAME,style=MaterialTheme.typography.labelMedium,color=scheme.onSurfaceVariant)
+     Text("DroidMediaLink ${installedVersion.name} (${installedVersion.code})",style=MaterialTheme.typography.labelMedium,color=scheme.onSurfaceVariant)
     }
    }
   }
@@ -205,11 +205,17 @@ class MainActivity:ComponentActivity() {
   if(recommendations) PermissionOnboarding(onComplete={recommendations=false;context.getSharedPreferences("onboarding",0).edit().putBoolean("permissionsV2",true).apply()})
   availableUpdate?.let { release->AlertDialog(
    onDismissRequest={availableUpdate=null},title={Text(stringResource(R.string.update_available))},
-   text={Text(stringResource(R.string.update_confirm,release.version))},
+   text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+    Text(stringResource(R.string.update_confirm,release.version))
+    if(release.notes.isNotBlank()) {
+     TextButton(onClick={updateNotesExpanded=!updateNotesExpanded}){Text(stringResource(if(updateNotesExpanded)R.string.update_notes_hide else R.string.update_notes))}
+     AnimatedVisibility(visible=updateNotesExpanded){Text(release.notes,style=MaterialTheme.typography.bodySmall,modifier=Modifier.heightIn(max=220.dp).verticalScroll(rememberScrollState()))}
+    }
+   }},
    confirmButton={TextButton(onClick={availableUpdate=null;downloadingUpdate=true;updateProgress=0f;updateJob=scope.launch {
     try { val apk=ReleaseUpdates.download(context,release){value->scope.launch{updateProgress=value}};(context as MainActivity).installUpdate(apk) }
     catch(error:CancellationException){throw error}
-    catch(_:Exception){update=context.getString(R.string.update_error)}
+    catch(_:Exception){android.widget.Toast.makeText(context,R.string.update_error,android.widget.Toast.LENGTH_SHORT).show()}
     finally{downloadingUpdate=false}
    }}){Text(stringResource(R.string.update_install))}},
    dismissButton={TextButton(onClick={availableUpdate=null}){Text(stringResource(R.string.cancel))}})
