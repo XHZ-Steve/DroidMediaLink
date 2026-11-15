@@ -1,9 +1,25 @@
 #include "Bridge.h"
+#include "ReleaseUpdate.h"
 #include <QCoreApplication>
 #include <QDebug>
 #include <QTemporaryDir>
 #include <QJSEngine>
 #include <QElapsedTimer>
+#include <QTcpServer>
+#include <QTcpSocket>
+#include <QEventLoop>
+class UpdateTests {
+public:static bool rejectsCorruptDownload(Bridge &bridge){
+ bridge.m_updateNetwork.setProxy(QNetworkProxy::NoProxy);
+ QTcpServer server;if(!server.listen(QHostAddress::LocalHost))return false;
+ QObject::connect(&server,&QTcpServer::newConnection,&server,[&server]{auto client=server.nextPendingConnection();QObject::connect(client,&QTcpSocket::readyRead,client,[client]{client->readAll();client->write("HTTP/1.1 200 OK\r\nContent-Length: 10\r\nConnection: close\r\n\r\nnot-an-exe");client->disconnectFromHost();});QObject::connect(client,&QTcpSocket::disconnected,client,&QObject::deleteLater);});
+ bridge.m_updateAsset=QJsonObject{{"browser_download_url",QString("http://127.0.0.1:%1/update").arg(server.serverPort())},{"size",10},{"digest","sha256:"+QString(64,'f')}};
+ QEventLoop loop;bool error=false;
+ auto connection=QObject::connect(&bridge,&Bridge::notification,&loop,[&](const QString &message){error=message.contains("verification failed");loop.quit();});
+ QTimer::singleShot(5000,&loop,&QEventLoop::quit);bridge.installUpdate();loop.exec();QObject::disconnect(connection);
+ return error&&!bridge.updateBusy();
+ }
+};
 int main(int argc,char **argv){QCoreApplication app(argc,argv);QTemporaryDir dir;QSettings::setDefaultFormat(QSettings::IniFormat);QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,dir.path());app.setOrganizationName("DmlTests");app.setApplicationName("isolated");auto rows=Bridge::parseLyrics("[00:02.50]B\n[00:01.005][00:03]A\n[offset:-5]");if(rows.size()!=3||rows[0].toMap()["time"].toLongLong()!=1000||rows[1].toMap()["time"].toLongLong()!=2495)return 1;auto ttml=Bridge::parseLyrics("<tt><body><p begin=\"00:00:01.500\">Hello <span>world</span></p></body></tt>");if(ttml.size()!=1||ttml[0].toMap()["time"].toLongLong()!=1500||ttml[0].toMap()["text"]!="Hello world")return 2;if(!Bridge::parseLyrics("<tt><p begin=\"1s\">broken").isEmpty())return 3;
  auto words=Bridge::parseLyrics("[00:01.00]<00:01.00>Hello <00:01.50>world");auto segments=words[0].toMap()["words"].toList();if(segments.size()!=2||segments[1].toMap()["time"]!=1500||words[0].toMap()["text"]!="Hello world")return 4;
  auto timed=Bridge::parseLyrics("<tt><p begin=\"1s\"><span begin=\"1s\">A</span><span begin=\"1.5s\">B</span></p></tt>");if(timed[0].toMap()["words"].toList().size()!=2)return 5;
@@ -52,4 +68,10 @@ int main(int argc,char **argv){QCoreApplication app(argc,argv);QTemporaryDir dir
  if(qAbs(bridge.appearanceConfig("global")["backgroundFillStrength"].toDouble()-.7)>.0001||qAbs(bridge.appearanceConfig("global")["backgroundSoftness"].toDouble()-.9)>.0001)return 81;
  bridge.exportSettings(settingsFile);bridge.applyAppearancePreset("balanced");bridge.importSettings(settingsFile);
  if(qAbs(bridge.appearanceConfig("global")["glassDispersion"].toDouble()-.23)>.0001)return 82;
+ if(ReleaseUpdate::newer("v1.1","1.1.0")||ReleaseUpdate::newer("v1.0","1.1.0")||ReleaseUpdate::newer("v1.2-beta","1.1.0")||!ReleaseUpdate::newer("v1.10","1.9.9"))return 90;
+ if(!ReleaseUpdate::asset(QJsonObject{{"tag_name","v9.0"},{"assets",QJsonArray{QJsonObject{{"name","DroidMediaLink-9-windows-x64-setup.exe"},{"browser_download_url","https://evil.test/file.exe"},{"size",10},{"digest","sha256:"+QString(64,'a')}}}}}).isEmpty())return 91;
+ QJsonObject installer{{"name","DroidMediaLink-1.2-windows-x64-setup.exe"},{"browser_download_url","https://github.com/XHZ-Steve/DroidMusicLink/releases/download/v1.2/setup.exe"},{"size",123},{"digest","sha256:"+QString(64,'a')}};
+ QJsonObject release{{"assets",QJsonArray{installer}}};if(ReleaseUpdate::asset(release).isEmpty())return 92;
+ release["prerelease"]=true;if(!ReleaseUpdate::asset(release).isEmpty())return 93;
+ if(!UpdateTests::rejectsCorruptDownload(bridge))return 94;
  qInfo()<<"LRC, word timings, TTML, settings, WSS and warm/cool/complementary/monochrome/pale cover palette checks passed";return 0;}

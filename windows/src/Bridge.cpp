@@ -1,5 +1,6 @@
 #include "Bridge.h"
 #include "FactoryDefaults.h"
+#include "ReleaseUpdate.h"
 #include <QScopedValueRollback>
 #include "SettingsSchema.h"
 #include "AppearanceConfig.h"
@@ -43,6 +44,7 @@ static Bridge *nativeOwner=nullptr;
 static void nativeCommand(const char *name,double value){QString command=QString::fromUtf8(name);if(auto app=QCoreApplication::instance())QMetaObject::invokeMethod(app,[command,value]{if(nativeOwner)nativeOwner->command(command,value);},Qt::QueuedConnection);}
 static QByteArray protect(QByteArray bytes,bool decrypt){DATA_BLOB input{DWORD(bytes.size()),reinterpret_cast<BYTE*>(bytes.data())},output{};BOOL ok=decrypt?CryptUnprotectData(&input,nullptr,nullptr,nullptr,nullptr,CRYPTPROTECT_UI_FORBIDDEN,&output):CryptProtectData(&input,L"DroidMediaLink",nullptr,nullptr,nullptr,CRYPTPROTECT_UI_FORBIDDEN,&output);if(!ok)return {};QByteArray result(reinterpret_cast<char*>(output.pbData),output.cbData);SecureZeroMemory(output.pbData,output.cbData);LocalFree(output.pbData);return result;}
 Bridge::Bridge(QObject *parent):QObject(parent),m_status(tr("Disconnected")){
+ m_updateNetwork.setProxyFactory(new ReleaseUpdate::SystemProxyFactory);
  for(auto defaults=factoryDefaults();auto key:defaults.keys())if(!m_settings.contains(key))m_settings.setValue(key,defaults.value(key).toVariant());
  if(!m_settings.value("preferences/lyrics/autoMatchMigration",false).toBool()){m_settings.setValue("preferences/lyrics/online",true);m_settings.setValue("preferences/lyrics/autoMatch",true);m_settings.setValue("preferences/lyrics/autoMatchMigration",true);}
  if(!m_settings.contains("preferences/desktopLyrics/fontSize")&&m_settings.contains("preferences/lyricSize"))m_settings.setValue("preferences/desktopLyrics/fontSize",m_settings.value("preferences/lyricSize"));
@@ -376,7 +378,7 @@ void Bridge::requestLyrics(QUrl url,QString key,quint64 generation,bool manual,b
  });
 }
 void Bridge::clearLyricsCache(){cancelLyricRequest();QDir dir(cachePath());for(const auto &file:dir.entryList({"*.lrc","*.lyrics.json"},QDir::Files))if(!file.endsWith(".manual.lrc"))dir.remove(file);m_lyricKey.clear();fetchLyrics();}
-void Bridge::checkUpdates(){QNetworkRequest request(QUrl("https://api.github.com/repos/XHZ-Steve/DroidMusicLink/releases/latest"));request.setRawHeader("User-Agent","DroidMediaLink/0.1.0");request.setTransferTimeout(10000);auto reply=m_network.get(request);connect(reply,&QNetworkReply::downloadProgress,reply,[reply](qint64 received,qint64){if(received>2*1024*1024)reply->abort();});connect(reply,&QNetworkReply::finished,this,[this,reply]{if(reply->error()==QNetworkReply::NoError){auto obj=QJsonDocument::fromJson(reply->read(1024*1024)).object();auto tag=obj.value("tag_name").toString();if(!tag.isEmpty()&&tag!="v"+QCoreApplication::applicationVersion())emit updateAvailable(tag,obj.value("html_url").toString());else emit notification(tr("You are up to date"));}else emit notification(tr("No release available or network unavailable"));reply->deleteLater();});}
+#include "ReleaseUpdateBackend.inc"
 
 
 

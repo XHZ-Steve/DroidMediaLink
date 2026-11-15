@@ -21,3 +21,10 @@ Source: "{#StageDirectory}\*"; DestDir: "{app}"; Flags: ignoreversion recursesub
 Name: "{group}\DroidMediaLink"; Filename: "{app}\DroidMediaLink.exe"
 [Run]
 Filename: "{app}\DroidMediaLink.exe"; Description: "DroidMediaLink"; Flags: nowait postinstall skipifsilent
+
+Filename: "{app}\DroidMediaLink.exe"; Flags: nowait skipifnotsilent; Check: IsUpdateInstall
+[Code]
+function IsUpdateInstall: Boolean;
+begin
+  Result := ExpandConstant('{param:DMLUPDATE|0}') = '1';
+end;

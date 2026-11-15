@@ -292,6 +292,10 @@
     </message>
     <message><source>Phone artwork</source><translation>手机封面</translation></message>
     <message><source>%1 · %2×%3</source><translation>%1 · %2×%3</translation></message>
+<message><source>No verified Windows installer is available for this release</source><translation>此版本尚无可验证的 Windows 安装包</translation></message>
+<message><source>Unable to save the update</source><translation>无法保存更新包</translation></message>
+<message><source>Unable to start the installer</source><translation>无法启动安装程序</translation></message>
+<message><source>Update download or verification failed</source><translation>更新下载或校验失败</translation></message>
 </context>
 <context>
     <name>CoverArtwork</name>
@@ -799,6 +803,10 @@
         <source>Standard</source>
         <translation type="vanished">标准</translation>
     </message>
+<message><source>Update available</source><translation>发现新版本</translation></message>
+<message><source>Download and install %1? The application will close during installation.</source><translation>下载并安装 %1？安装期间应用将关闭。</translation></message>
+<message><source>Checking for updates</source><translation>正在检查更新</translation></message>
+<message><source>Downloading update</source><translation>正在下载更新</translation></message>
 </context>
 <context>
     <name>NowPlayingCanvas</name>

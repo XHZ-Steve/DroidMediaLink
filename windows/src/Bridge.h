@@ -17,6 +17,8 @@
 #include "LyricProviders.h"
 class Bridge : public QObject {
  Q_OBJECT
+ Q_PROPERTY(bool updateBusy READ updateBusy NOTIFY updateChanged)
+ Q_PROPERTY(double updateProgress READ updateProgress NOTIFY updateChanged)
  Q_PROPERTY(QString pairingCode READ pairingCode NOTIFY changed)
  Q_PROPERTY(bool pairingPending READ pairingPending NOTIFY changed)
  Q_PROPERTY(QString status READ status NOTIFY changed)
@@ -128,6 +130,10 @@ public:
  Q_INVOKABLE void clearLyricsCache();
  Q_INVOKABLE void forgetDevice(QString url);
  Q_INVOKABLE void checkUpdates();
+ Q_INVOKABLE void installUpdate();
+ Q_INVOKABLE void cancelUpdate();
+ bool updateBusy()const{return m_updateBusy;}
+ double updateProgress()const{return m_updateProgress;}
  Q_INVOKABLE void setUiVisible(bool visible);
  Q_INVOKABLE void setLyricsVisible(QString surface,bool visible);
  bool initializeNative(quintptr hwnd);
@@ -142,9 +148,12 @@ signals:
  void lyricProvidersChanged();
  void coverProvidersChanged();
  void commandFinished(QString requestId,bool success,QString error);
+ void updateChanged();
  void notification(QString message); void updateAvailable(QString version,QString url);
 private:
  friend class LyricsEngineTests;
+ friend class UpdateTests;
+ QNetworkAccessManager m_updateNetwork;QJsonObject m_updateAsset;bool m_updateBusy=false;double m_updateProgress=-1;QPointer<QNetworkReply> m_updateReply;
  QSettings m_settings;QWebSocket m_socket;QNetworkAccessManager m_network;QUdpSocket m_mdns;
  QTimer m_progress,m_heartbeat,m_retry,m_pairTimeout;QElapsedTimer m_anchor,m_lastPong;
  void schedulePublishedCover();void fetchPublishedCover();

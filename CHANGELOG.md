@@ -1,6 +1,13 @@
 # Changelog
 
-## 1.1.0 preview
+## 1.1.0 — 2026-11-15 · v1.1
+
+- Promote the current 64 validated Windows appearance/lyric/media preferences to factory defaults; preserve existing profiles and exclude identities, network addresses and window positions.
+- Compare normalized stable GitHub release versions on both platforms; confirm, download, verify SHA-256 and launch the platform installation flow.
+- Fluid fill lighting, independent light-field softness, optical glass preset and styled confirmation dialogs.
+- Rewrite bilingual READMEs around the application, available functionality, direct downloads and setup.
+
+### Included preview improvements
 
 - Preview4: aligned lyric ink and per-layout title/lyrics/artwork offsets; three alignment presets; timeline-synchronized long-line scrolling, delayed loading feedback and lyric fade-in; more perceptible ambient flow with hidden-window pause.
 

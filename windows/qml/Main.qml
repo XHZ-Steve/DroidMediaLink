@@ -143,6 +143,19 @@ ApplicationWindow {
         light: root.light; motion: root.motion; glassEnabled: root.liquidStyle
         highContrast: root.highContrast; foreground: root.fg; surface: design.elevated; accent: root.accent
     }
+    AppDialog {
+        id:updateConfirm;title:qsTr("Update available");modal:true;anchors.centerIn:Overlay.overlay;width:Math.min(440,root.width-32)
+        property string releaseVersion:""
+        standardButtons:Dialog.Ok|Dialog.Cancel
+        contentItem:Label{text:qsTr("Download and install %1? The application will close during installation.").arg(updateConfirm.releaseVersion);color:root.fg;wrapMode:Text.Wrap}
+        onAccepted:backend.installUpdate()
+    }
+    AppDialog {
+        id:updateDownload;title:backend.updateProgress<0?qsTr("Checking for updates"):qsTr("Downloading update")
+        anchors.centerIn:Overlay.overlay;width:Math.min(400,root.width-32);standardButtons:Dialog.Cancel;closePolicy:Popup.NoAutoClose
+        contentItem:ProgressBar{from:0;to:1;value:backend.updateProgress;indeterminate:backend.updateProgress<0}
+        onRejected:backend.cancelUpdate()
+    }
     component AmbientScene: AmbientField {
         primary:backend.ambientPrimary;secondary:backend.ambientSecondary;accent:backend.ambientAccent;deep:backend.ambientDeep;configuration:root.material("background")
         light:root.light;motion:root.motion;transitionDuration:design.atmosphere;active:Window.window&&Window.window.visible&&Window.window.visibility!==Window.Minimized
@@ -411,7 +424,8 @@ ApplicationWindow {
     Connections { target: backend; ignoreUnknownSignals: true
         function onSettingsChanged() { root.settingsRevision++ }
         function onNotification(message) { feedbackText.text=message; feedback.open(); feedbackTimer.restart() }
-        function onUpdateAvailable(version,url) { feedbackText.text=version+"\n"+url;feedback.open() }
+        function onUpdateAvailable(version,url) { updateConfirm.releaseVersion=version;updateConfirm.open() }
+        function onUpdateChanged() {if(backend.updateBusy)updateDownload.open();else updateDownload.close()}
         function onShowWindow() { root.show(); root.raise(); root.requestActivate() }
     }
 }

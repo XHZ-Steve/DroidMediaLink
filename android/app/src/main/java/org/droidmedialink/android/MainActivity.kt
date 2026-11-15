@@ -45,9 +45,26 @@ class MainActivity:ComponentActivity() {
  fun exportPreferences()=exportSettings.launch("DroidMediaLink-settings.json")
  fun importPreferences()=importSettings.launch(arrayOf("application/json"))
  fun language(value:String) { getSharedPreferences("locale",0).edit().putString("language",value).apply();Hub.set("language",value);recreate() }
+ private var pendingUpdate:java.io.File?=null
+ private val installPermission=registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+  val apk=pendingUpdate;pendingUpdate=null
+  if(apk!=null&&packageManager.canRequestPackageInstalls())runCatching{openInstaller(apk)}.onFailure{Hub.error.value=getString(R.string.update_error)}
+  else Hub.error.value=getString(R.string.update_install_permission)
+ }
+ fun installUpdate(apk:java.io.File) {
+  if(!packageManager.canRequestPackageInstalls()){
+   pendingUpdate=apk
+   installPermission.launch(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,android.net.Uri.parse("package:$packageName")))
+  } else openInstaller(apk)
+ }
+ private fun openInstaller(apk:java.io.File) {
+  val uri=androidx.core.content.FileProvider.getUriForFile(this,"$packageName.updates",apk)
+  startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri,"application/vnd.android.package-archive").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+ }
  private val notifications=registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
  override fun onCreate(savedInstanceState:Bundle?) {
   super.onCreate(savedInstanceState)
+  if(savedInstanceState?.getBoolean("pendingUpdate")==true)pendingUpdate=java.io.File(cacheDir,"updates/update.apk").takeIf{it.isFile}
   setContent { DroidUI() }
   lifecycleScope.launch {
    val saved=settings.data.first()
@@ -55,6 +72,7 @@ class MainActivity:ComponentActivity() {
     runCatching { startForegroundService(Intent(this@MainActivity,PassiveLinkService::class.java)) }.onFailure { Hub.error.value=getString(R.string.service_error) }
   }
  }
+ override fun onSaveInstanceState(outState:Bundle){outState.putBoolean("pendingUpdate",pendingUpdate!=null);super.onSaveInstanceState(outState)}
  fun startLink() {
   if(Build.VERSION.SDK_INT>=33)notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
   runCatching { startForegroundService(Intent(this,PassiveLinkService::class.java)) }.onFailure { Hub.error.value=getString(R.string.service_error) }
@@ -82,6 +100,10 @@ class MainActivity:ComponentActivity() {
  var recommendations by remember { mutableStateOf(!context.getSharedPreferences("onboarding",0).getBoolean("permissionsV2",false)) }
  var update by remember { mutableStateOf("") }
  var checking by remember { mutableStateOf(false) }
+ var availableUpdate by remember { mutableStateOf<ReleaseAsset?>(null) }
+ var downloadingUpdate by remember { mutableStateOf(false) }
+ var updateProgress by remember { mutableFloatStateOf(0f) }
+ var updateJob by remember { mutableStateOf<Job?>(null) }
  val scope=rememberCoroutineScope()
  val dark=when(prefs[androidx.datastore.preferences.core.stringPreferencesKey("theme")]) { "dark"->true;"light"->false;else->isSystemInDarkTheme() }
  val scheme=if(Build.VERSION.SDK_INT>=31) { if(dark)dynamicDarkColorScheme(context) else dynamicLightColorScheme(context) } else if(dark)darkColorScheme(primary=Color(0xffbccbbd),primaryContainer=Color(0xff304b3b),secondaryContainer=Color(0xff34453a),surface=Color(0xff151c1b),surfaceContainer=Color(0xff1b2420)) else lightColorScheme(primary=Color(0xff486655),primaryContainer=Color(0xffdce8dc),secondaryContainer=Color(0xffe2e8df),onSecondaryContainer=Color(0xff202b22),surface=Color(0xfff4f7f1),surfaceContainer=Color(0xffedf0e9))
@@ -162,16 +184,14 @@ class MainActivity:ComponentActivity() {
       FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) { listOf("" to R.string.system,"en" to R.string.english,"zh-CN" to R.string.chinese).forEach { (value,label)->FilterChip(Hub.string("language")==value,{(context as MainActivity).language(value)},label={Text(stringResource(label))}) } }
      
 
-      TextButton(enabled=!checking,onClick={checking=true;scope.launch {
-       update=withContext(Dispatchers.IO) { try {
-        val connection=java.net.URL("https://api.github.com/repos/XHZ-Steve/DroidMusicLink/releases/latest").openConnection() as javax.net.ssl.HttpsURLConnection
-        connection.connectTimeout=10000;connection.readTimeout=10000;connection.setRequestProperty("Accept","application/vnd.github+json");connection.setRequestProperty("User-Agent","DroidMediaLink/"+BuildConfig.VERSION_NAME)
-        try { if(connection.responseCode==404) context.getString(R.string.no_release) else { val json=JSONObject(connection.inputStream.bufferedReader().readText());json.getString("tag_name")+"\n"+json.optString("body").take(2000) } } finally { connection.disconnect() }
-       } catch(_:Exception) { context.getString(R.string.update_error) } }
-       checking=false
-      }}) { Text(stringResource(R.string.check_updates)) }
+      TextButton(enabled=!checking&&!downloadingUpdate,onClick={checking=true;scope.launch {
+       try { availableUpdate=ReleaseUpdates.check();update=if(availableUpdate==null)context.getString(R.string.update_current) else "" }
+       catch(error:CancellationException){throw error}
+       catch(_:Exception){update=context.getString(R.string.update_error)}
+       finally {checking=false}
+      }}) { Text(stringResource(if(checking)R.string.update_checking else R.string.check_updates)) }
       if(update.isNotEmpty())Text(update,style=MaterialTheme.typography.bodySmall)
-     
+
      TextButton(onClick={help=R.string.privacy_help}) { Text(stringResource(R.string.privacy)) }
 
       FlowRow { TextButton(onClick={(context as MainActivity).exportPreferences()}) { Text(stringResource(R.string.export_settings)) };TextButton(onClick={(context as MainActivity).importPreferences()}) { Text(stringResource(R.string.import_settings)) };TextButton(onClick={confirmReset=true}) { Text(stringResource(R.string.reset_settings)) } }
@@ -183,6 +203,19 @@ class MainActivity:ComponentActivity() {
   GlassNavigation(page=page,onPage={page=it},backdrop=backdrop,glass=glass,modifier=Modifier.align(Alignment.BottomCenter))
   }
   if(recommendations) PermissionOnboarding(onComplete={recommendations=false;context.getSharedPreferences("onboarding",0).edit().putBoolean("permissionsV2",true).apply()})
+  availableUpdate?.let { release->AlertDialog(
+   onDismissRequest={availableUpdate=null},title={Text(stringResource(R.string.update_available))},
+   text={Text(stringResource(R.string.update_confirm,release.version))},
+   confirmButton={TextButton(onClick={availableUpdate=null;downloadingUpdate=true;updateProgress=0f;updateJob=scope.launch {
+    try { val apk=ReleaseUpdates.download(context,release){value->scope.launch{updateProgress=value}};(context as MainActivity).installUpdate(apk) }
+    catch(error:CancellationException){throw error}
+    catch(_:Exception){update=context.getString(R.string.update_error)}
+    finally{downloadingUpdate=false}
+   }}){Text(stringResource(R.string.update_install))}},
+   dismissButton={TextButton(onClick={availableUpdate=null}){Text(stringResource(R.string.cancel))}})
+  }
+  if(downloadingUpdate)AlertDialog(onDismissRequest={},title={Text(stringResource(R.string.update_downloading))},
+   text={Column(verticalArrangement=Arrangement.spacedBy(12.dp)){LinearProgressIndicator(progress={updateProgress},modifier=Modifier.fillMaxWidth());Text("${(updateProgress*100).toInt()}%")}},confirmButton={},dismissButton={TextButton(onClick={updateJob?.cancel()}){Text(stringResource(R.string.cancel))}})
   if(confirmReset) AlertDialog(onDismissRequest={confirmReset=false},title={Text(stringResource(R.string.reset_settings))},text={Text(stringResource(R.string.reset_warning))},confirmButton={TextButton(onClick={confirmReset=false;scope.launch{SettingsTransfer.reset(context);(context as MainActivity).recreate()}}){Text(stringResource(R.string.reset_settings))}},dismissButton={TextButton(onClick={confirmReset=false}){Text(stringResource(R.string.cancel))}})
   pending?.let { request->AlertDialog(onDismissRequest={request.approve(false)},icon={LucideIcon(Lucide.Computer,null)},title={Text(stringResource(R.string.approve_pairing))},text={Column(verticalArrangement=Arrangement.spacedBy(16.dp)) { Text(request.name);Text(request.sas,style=MaterialTheme.typography.displayMedium,fontWeight=FontWeight.Medium);Text(stringResource(R.string.compare_sas)) }},confirmButton={TextButton(onClick={request.approve(true)}) { Text(stringResource(R.string.codes_match)) }},dismissButton={TextButton(onClick={request.approve(false)}) { Text(stringResource(R.string.reject)) }}) }
   confirmRevoke?.let { peer->AlertDialog(onDismissRequest={confirmRevoke=null},title={Text(stringResource(R.string.revoke))},text={Text(stringResource(R.string.revoke_warning,peer.second))},confirmButton={TextButton(onClick={PairingStore(context).revoke(peer.first);confirmRevoke=null}) { Text(stringResource(R.string.revoke)) }},dismissButton={TextButton(onClick={confirmRevoke=null}) { Text(stringResource(R.string.cancel)) }}) }
