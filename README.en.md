@@ -1,6 +1,6 @@
 <div align="center">
 
-# DroidMediaLink
+<h1><img src="docs/images/app-icon.png" width="32" height="32" alt="" /> DroidMediaLink</h1>
 
 **Your Android music, playback controls and synchronized lyrics on Windows.**
 

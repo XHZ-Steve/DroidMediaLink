@@ -1,6 +1,6 @@
 <div align="center">
 
-# DroidMediaLink
+<h1><img src="docs/images/app-icon.png" width="32" height="32" alt="" /> DroidMediaLink</h1>
 
 **在 Windows 上查看手机音乐、控制播放、显示同步歌词。**
 
