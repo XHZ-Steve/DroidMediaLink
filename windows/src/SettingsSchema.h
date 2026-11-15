@@ -25,10 +25,10 @@ inline QVariantList descriptors(){
  S("startHidden","Start in tray",0,1,"bool",false);
  S("closeToTray","Close to tray",0,1,"bool",true);
  S("window/autoHideControls","Auto-hide window controls",0,2,"bool",true);
- S("shortcut/settings","Settings shortcut",0,3,"shortcut","Ctrl+,");
- S("shortcut/devices","Connection shortcut",0,3,"shortcut","Ctrl+Shift+D");
- S("shortcut/desktop","Desktop lyrics shortcut",0,3,"shortcut","Ctrl+Shift+L");
- S("shortcut/floating","Floating player shortcut",0,3,"shortcut","Ctrl+Shift+P");
+ S("shortcut/settings","Open settings",0,3,"shortcut","Ctrl+,");
+ S("shortcut/devices","Manage devices",0,3,"shortcut","Ctrl+Shift+D");
+ S("shortcut/desktop","Toggle desktop lyrics",0,3,"shortcut","Ctrl+Shift+L");
+ S("shortcut/floating","Toggle floating player",0,3,"shortcut","Ctrl+Shift+P");
  S("connection/autoReconnect","Automatic reconnect",1,2,"bool",true);
  S("info/transport","Encrypted connection",1,3,"readonly","WSS / TLS 1.2");
  S("info/player","Current player",2,0,"readonly","");

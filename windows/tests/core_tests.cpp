@@ -41,4 +41,15 @@ int main(int argc,char **argv){QCoreApplication app(argc,argv);QTemporaryDir dir
  bridge.setSetting("cover/source","qq,netease,musicbrainz");if(bridge.setting("cover/source").toString()!="qq,netease,musicbrainz")return 75;
  bridge.setSetting("cover/source","unknown,netease,qq");if(bridge.setting("cover/source").toString()!="qq,netease,musicbrainz")return 76;
  bridge.setSetting("cover/providers/qq/enabled",false);if(bridge.setting("cover/providers/qq/enabled",true).toBool())return 77;
+ // Material ranges, preset persistence and scoped inheritance must remain real.
+ bridge.applyAppearancePreset("optical");
+ auto optical=bridge.appearanceConfig("global");
+ if(qAbs(optical["glassDispersion"].toDouble()-.23)>.0001||!optical["backgroundFill"].toBool())return 80;
+ bridge.setAppearance("global","backgroundFillStrength",.7);
+ bridge.setAppearance("global","backgroundFillStrength",2.);
+ bridge.setAppearance("global","backgroundSoftness",.9);
+ bridge.setAppearance("global","backgroundSoftness",-1.);
+ if(qAbs(bridge.appearanceConfig("global")["backgroundFillStrength"].toDouble()-.7)>.0001||qAbs(bridge.appearanceConfig("global")["backgroundSoftness"].toDouble()-.9)>.0001)return 81;
+ bridge.exportSettings(settingsFile);bridge.applyAppearancePreset("balanced");bridge.importSettings(settingsFile);
+ if(qAbs(bridge.appearanceConfig("global")["glassDispersion"].toDouble()-.23)>.0001)return 82;
  qInfo()<<"LRC, word timings, TTML, settings, WSS and warm/cool/complementary/monochrome/pale cover palette checks passed";return 0;}

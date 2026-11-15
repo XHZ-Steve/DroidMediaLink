@@ -1032,6 +1032,12 @@ vec4 glassMain(vec2 coord) {
         pushB = vec2(0.0);
         bend = 0.0;
     }
+    // Product adaptation: real spectral backdrop taps at the fold shoulder,
+    // where displacement crosses zero; never a painted rainbow border.
+    float spectralRim=1.0-smoothstep(0.0,max(1.0,uBevel*2.5),depth);
+    vec2 spectralShift=-n*(uAberration*min(uRefractBand*.55,12.0)*spectralRim*mat*clamp(uRefractDepth,0.0,1.0)*(1.0-step(2.5,uProfile)));
+    pushR+=spectralShift;
+    pushB-=spectralShift;
     vec3 sharp;
     float soften = uRimSoft * bend;
     if (soften > 0.05) {

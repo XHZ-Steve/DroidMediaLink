@@ -11,6 +11,7 @@ layout(std140, binding = 0) uniform buf {
     vec4 tuning;
     vec4 atmosphere;
     vec4 geometry;
+    vec4 fluid;
     float phase;
 };
 const vec3 luma=vec3(.2126,.7152,.0722);
@@ -23,7 +24,9 @@ vec3 vivid(vec3 c) {
 }
 float region(vec2 p,vec2 center,vec2 stretch,float radius) {
     vec2 delta=(p-center)*stretch;
-    return exp(-dot(delta,delta)/max(.015,radius*radius));
+    // A broad shoulder removes the steep, pinched join of overlapping Gaussians.
+    float d2=dot(delta,delta)/max(.015,radius*radius);
+    return exp(-d2/(1.+1.6*fluid.x));
 }
 void main() {
     vec2 uv=qt_TexCoord0;
@@ -47,8 +50,22 @@ void main() {
     float darkLuma=dot(base,luma);
     base*=min(1.,.09/max(darkLuma,.001));
     vec3 darkBase=base+vec3(max(0.,.04*atmosphere.w-dot(base,luma)));
-    float coverage=clamp(total*tuning.x*1.75,0.,1.);
-    vec3 darkField=mix(linearColor(darkBase),colors,coverage*.48);
+    // Continuous energy mapping has no clipped overlap boundary. Fill follows
+    // the *uncovered* area and borrows spatially distinct broad palette lobes.
+    float coverage=1.-exp(-total*tuning.x*2.2);
+    vec3 fillWeights=vec3(
+        region(uv,vec2(.08,.72)+drift*.35,metric,.85*fluid.w),
+        region(uv,vec2(.92,.25)-drift*.35,metric,.85*fluid.w),
+        region(uv,vec2(.52,.95),metric,.7*fluid.w));
+    float fillTotal=dot(fillWeights,vec3(1.));
+    vec3 fillColor=(linearColor(vivid(primaryColor.rgb))*fillWeights.x+
+                    linearColor(vivid(secondaryColor.rgb))*fillWeights.y+
+                    linearColor(vivid(accentColor.rgb))*fillWeights.z)/max(fillTotal,.0001);
+    float fillEnergy=fluid.y*fluid.z*tuning.x*(1.-coverage)*(1.-exp(-fillTotal*2.));
+    // Energy-weighted colour, rather than an opaque global brightening layer.
+    colors=(colors*coverage+fillColor*fillEnergy)/max(coverage+fillEnergy,.0001);
+    coverage=min(1.,coverage+fillEnergy);
+    vec3 darkField=mix(linearColor(darkBase),colors,coverage*.32);
     vec3 lightField=mix(linearColor(vec3(.965,.972,.985)),colors,coverage*.21);
     vec3 result=pow(max(mix(darkField,lightField,geometry.w),vec3(0)),vec3(1./2.2));
     vec3 neutral=mix(vec3(.025,.032,.046),vec3(.975,.979,.988),geometry.w);

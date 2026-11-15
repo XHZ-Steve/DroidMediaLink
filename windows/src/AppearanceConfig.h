@@ -16,6 +16,10 @@ inline QVariantList descriptors() {
   {"backgroundVibrance",QT_TRANSLATE_NOOP("Appearance","Vibrance"),"background","real",.24,-.5,1,.05,true},
   {"backgroundOpacity",QT_TRANSLATE_NOOP("Appearance","Atmosphere opacity"),"background","real",1,0,1,.05,false},
   {"backgroundDiffusion",QT_TRANSLATE_NOOP("Appearance","Diffusion radius"),"background","real",.85,.3,1.6,.05,false},
+  {"backgroundSoftness",QT_TRANSLATE_NOOP("Appearance","Light-field softness"),"background","real",.6,0,1,.05,false},
+  {"backgroundFill",QT_TRANSLATE_NOOP("Appearance","Fluid fill lighting"),"background","bool",1,0,1,1,false},
+  {"backgroundFillStrength",QT_TRANSLATE_NOOP("Appearance","Fill strength"),"background","real",.38,0,1,.05,false},
+  {"backgroundFillReach",QT_TRANSLATE_NOOP("Appearance","Fill reach"),"background","real",1,.5,2,.05,true},
   {"backgroundFlow",QT_TRANSLATE_NOOP("Appearance","Flow speed"),"background","real",.35,0,2,.05,true},
   {"backgroundDither",QT_TRANSLATE_NOOP("Appearance","Gradient smoothing"),"background","real",.7,0,1,.05,true},
   {"backgroundShadowProtection",QT_TRANSLATE_NOOP("Appearance","Shadow protection"),"background","real",.35,0,1,.05,true},
@@ -37,6 +41,7 @@ inline QVariantList descriptors() {
  QVariantList result;
  for(const auto &e:entries)result<<QVariantMap{{"key",QString::fromLatin1(e.key)},{"label",QCoreApplication::translate("Appearance",e.label)},{"group",QString::fromLatin1(e.group)},{"type",QString::fromLatin1(e.type)},{"defaultValue",QString::fromLatin1(e.type)=="bool"?QVariant(e.value!=0):QVariant(e.value)},{"min",e.min},{"max",e.max},{"step",e.step},{"advanced",e.advanced}};
  result<<QVariantMap{{"key","glassTint"},{"label",QCoreApplication::translate("Appearance","Glass tint")},{"group","glass"},{"type","color"},{"defaultValue","auto"},{"advanced",true}};
+ for(auto &entry:result){auto row=entry.toMap();if(row["key"]=="backgroundSoftness")row["help"]=QCoreApplication::translate("Appearance","Softens light-source falloff without lowering rendering resolution. Diffusion controls their size; glass blur affects surfaces only.");if(row["key"]=="backgroundFillStrength")row["help"]=QCoreApplication::translate("Appearance","Adds palette-coloured light where moving sources leave gaps. Zero disables the fill contribution.");entry=row;}
  return result;
 }
 inline QVariant defaultValue(const QString &key) {

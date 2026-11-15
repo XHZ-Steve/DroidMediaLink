@@ -77,6 +77,15 @@ Item {
             const confirm=findChild(page,"presetDeleteConfirm");mouseClick(confirm,confirm.width/2,confirm.height/2);wait(30)
             verify(!controller.lyricPresets.some(function(row){return row.name==="TEST renamed"}))
         }
+        function test_confirmation_preserves_cancel_and_standard_buttons(){
+            const dialog=findChild(page,"resetSettingsConfirm");verify(dialog)
+            page.pendingReset={kind:"all"};dialog.open();tryCompare(dialog,"opened",true)
+            verify(dialog.background.glassEnabled)
+            verify(dialog.header.text.length>0)
+            verify(dialog.footer.count>=2)
+            keyClick(Qt.Key_Escape);tryCompare(dialog,"visible",false)
+            compare(controller.values.motion,true)
+        }
         function test_switch_commits_actual_boolean(){
             const toggle=findChild(page,"editor-motion")
             verify(toggle);verify(toggle.checked)

@@ -123,6 +123,12 @@
         <source>Glass tint</source>
         <translation>玻璃染色</translation>
     </message>
+<message><source>Light-field softness</source><translation>光场柔化</translation></message>
+<message><source>Fluid fill lighting</source><translation>流体补光</translation></message>
+<message><source>Fill strength</source><translation>补光强度</translation></message>
+<message><source>Fill reach</source><translation>补光范围</translation></message>
+<message><source>Softens light-source falloff without lowering rendering resolution. Diffusion controls their size; glass blur affects surfaces only.</source><translation>柔化光源衰减，不降低渲染分辨率。扩散半径控制光源大小；玻璃模糊仅影响玻璃表面。</translation></message>
+<message><source>Adds palette-coloured light where moving sources leave gaps. Zero disables the fill contribution.</source><translation>在移动光源覆盖不足的区域补充封面环境色。设为零不产生补光。</translation></message>
 </context>
 <context>
     <name>Bridge</name>
@@ -2101,6 +2107,10 @@
     <message><source>Artwork horizontal offset</source><translation>封面水平偏移</translation></message>
     <message><source>Artwork vertical offset</source><translation>封面垂直偏移</translation></message>
     <message><source>scroll</source><translation>滚动歌词</translation></message>
+<message><source>Open settings</source><translation>打开设置</translation></message>
+<message><source>Manage devices</source><translation>管理设备</translation></message>
+<message><source>Toggle desktop lyrics</source><translation>显示/隐藏桌面歌词</translation></message>
+<message><source>Toggle floating player</source><translation>显示/隐藏悬浮播放器</translation></message>
 </context>
 <context>
     <name>SettingsPage</name>
@@ -2716,6 +2726,7 @@
     <message><source>Cached</source><translation>缓存命中</translation></message>
     <message><source>Experimental</source><translation>实验性</translation></message>
     <message><source>No matching cover</source><translation>未匹配到封面</translation></message>
+<message><source>Optical</source><translation>通透光学</translation></message>
 </context>
 <context><name>CoverArt</name>
     <message><source>Untrusted cover URL</source><translation>不受信任的封面地址</translation></message>

@@ -26,6 +26,9 @@ Window {
         x: 60; y: 190; width: 780; height: 240
         sourceItem: backdrop; cornerRadius: 44; glassEnabled: window.glassOn
         tintStrength: 0.16; tintColor: "#273442"
+        configuration: ({glassOpacity:.045,glassTintStrength:.12,glassBlur:.6,
+                         glassRefraction:1.45,glassDistortion:1.25,glassDispersion:.23,
+                         glassEdgeGlow:.85,glassEdgeWidth:2.2,glassShadow:.08,glassRadius:44})
         Text { anchors.centerIn: parent; text: "DroidMediaLink"; color: "white"; font.pixelSize: 28 }
     }
     // Hidden per-window scene: capture must work without leaking its square edges.

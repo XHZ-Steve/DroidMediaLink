@@ -138,14 +138,10 @@ ApplicationWindow {
         up.indicator:Rectangle{x:number.width-width;width:32;height:number.height;radius:design.radius;color:number.up.pressed?design.pressed:"transparent";Text{anchors.centerIn:parent;text:"+";color:root.fg;font.pixelSize:18}}
         down.indicator:Rectangle{width:32;height:number.height;radius:design.radius;color:number.down.pressed?design.pressed:"transparent";Text{anchors.centerIn:parent;text:"−";color:root.fg;font.pixelSize:18}}
     }
-    component AppDialog: Dialog {
-        id:dialogSurface;padding:24;spacing:16
-        header:Label{text:dialogSurface.title;visible:text.length>0;leftPadding:24;rightPadding:24;topPadding:24;bottomPadding:4;color:root.fg;font.pixelSize:20;font.weight:Font.DemiBold}
-        footer:DialogButtonBox{standardButtons:dialogSurface.standardButtons;padding:16;spacing:8;alignment:Qt.AlignRight;delegate:Action{implicitWidth:96}background:Item{}onAccepted:dialogSurface.accept();onRejected:dialogSurface.reject()}
-        background:GlassMaterial{configuration:root.material("popup");motion:root.motion;sourceItem:ambient;glassEnabled:root.liquidStyle;cornerRadius:design.dialogRadius;active:dialogSurface.visible&&root.visible;dark:!root.light;backdropColor:root.bg;tintColor:design.elevated;tintStrength:root.light?.10+root.glass*.44:.04+root.glass*.25;fallbackColor:design.elevated;increasedContrast:root.highContrast?1:0}
-        Overlay.modal:Rectangle{color:root.light?"#25202c48":"#65060812"}
-        enter:Transition{NumberAnimation{property:"opacity";from:0;to:1;duration:design.fast}}
-        exit:Transition{NumberAnimation{property:"opacity";from:1;to:0;duration:design.fast}}
+    component AppDialog: GlassDialog {
+        materialSource: ambient; configuration: root.material("popup")
+        light: root.light; motion: root.motion; glassEnabled: root.liquidStyle
+        highContrast: root.highContrast; foreground: root.fg; surface: design.elevated; accent: root.accent
     }
     component AmbientScene: AmbientField {
         primary:backend.ambientPrimary;secondary:backend.ambientSecondary;accent:backend.ambientAccent;deep:backend.ambientDeep;configuration:root.material("background")
@@ -193,7 +189,7 @@ ApplicationWindow {
                 onSeekRequested:function(position){backend.command("seek",position)}
             }
             SettingsPage {
-                id:settingsPage;objectName:"settingsPage";materialSource:ambient;controller:backend;settingsRevision:root.settingsRevision;light:root.light;motion:root.motion;accent:root.accent;textColor:root.fg
+                id:settingsPage;objectName:"settingsPage";highContrast:root.highContrast;materialSource:ambient;controller:backend;settingsRevision:root.settingsRevision;light:root.light;motion:root.motion;accent:root.accent;textColor:root.fg
                 onCloseRequested:root.changePage(0)
                 onDesktopLyricsRequested:desktop.toggleRequested()
                 onFloatingRequested:floating.visible=!floating.visible

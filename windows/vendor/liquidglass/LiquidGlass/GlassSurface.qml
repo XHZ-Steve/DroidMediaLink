@@ -96,7 +96,7 @@ Item {
         // the colored scene visible instead of lifting it into a grey substrate.
         values.uBlur = [Math.max(0, blurRadius) * dpr]
         values.uWideKernel = [Math.max(0, blurRadius) * 1.25 * dpr]
-        values.uFineShare = [0.82]
+        values.uFineShare = [0.94]
         // The upstream wide-tone path adds a separate kernel and axis average.
         // Low quality keeps the real lens/fine blur while skipping that pass.
         values.uWideStrip = [quality === 0 ? 0 : 1]

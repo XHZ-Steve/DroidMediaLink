@@ -42,6 +42,7 @@ Item {
         property vector4d tuning: Qt.vector4d(field.setting("backgroundStrength",1),field.setting("backgroundBrightness",1),field.setting("backgroundSaturation",1.08),field.setting("backgroundVibrance",.24))
         property vector4d atmosphere: Qt.vector4d(field.setting("backgroundOpacity",1),field.setting("backgroundDiffusion",.85),field.setting("backgroundDither",.7),field.setting("backgroundShadowProtection",.35))
         property vector4d geometry: Qt.vector4d(width,height,Screen.devicePixelRatio,field.light?1:0)
+        property vector4d fluid: Qt.vector4d(field.setting("backgroundSoftness",.6),field.setting("backgroundFill",true)?1:0,field.setting("backgroundFillStrength",.38),field.setting("backgroundFillReach",1))
         property real phase: field.phase
     }
 }

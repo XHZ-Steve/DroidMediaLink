@@ -13,6 +13,7 @@ Item {
     property int settingsRevision: 0
     property int initialGroup: 0
     property int initialSection: 0
+    property bool highContrast: false
     property bool light: false
     property bool motion: true
     property color accent: "#bac9ed"
@@ -472,7 +473,7 @@ Item {
         Item{Layout.fillWidth:true}
         Label{visible:appearancePanel.scope!=="global";text:qsTr("Use global settings");color:page.textColor}
         Toggle{visible:appearancePanel.scope!=="global";checked:appearancePanel.inherited;Accessible.name:qsTr("Use global settings");onClicked:page.controller.setAppearanceInherited(appearancePanel.scope,checked)}
-        Choice{visible:appearancePanel.scope==="global";Layout.preferredWidth:155;Accessible.name:qsTr("Appearance preset");model:[{label:qsTr("Preset"),value:""},{label:qsTr("Clear"),value:"clear"},{label:qsTr("Balanced"),value:"balanced"},{label:qsTr("Vivid"),value:"vivid"}];currentIndex:0;onActivated:if(currentIndex>0){page.controller.applyAppearancePreset(model[currentIndex].value);currentIndex=0}}
+        Choice{visible:appearancePanel.scope==="global";Layout.preferredWidth:155;Accessible.name:qsTr("Appearance preset");model:[{label:qsTr("Preset"),value:""},{label:qsTr("Clear"),value:"clear"},{label:qsTr("Balanced"),value:"balanced"},{label:qsTr("Vivid"),value:"vivid"},{label:qsTr("Optical"),value:"optical"}];currentIndex:0;onActivated:if(currentIndex>0){page.controller.applyAppearancePreset(model[currentIndex].value);currentIndex=0}}
     }
     component LyricPresetsPanel: ColumnLayout {
         spacing:10
@@ -655,18 +656,24 @@ Item {
         NumberAnimation{target:contentScroll;property:"opacity";to:1;duration:150;easing.type:Easing.OutCubic}
         NumberAnimation{target:categoryOffset;property:"y";to:0;duration:190;easing.type:Easing.OutCubic}
     }
-    Dialog {
-        id:resetDialog;title:qsTr("Restore defaults?");modal:true;anchors.centerIn:Overlay.overlay;width:Math.min(420,page.width-24)
+    component ConfirmDialog: GlassDialog {
+        materialSource: page.materialSource
+        configuration: {const revision=page.settingsRevision;return page.controller.appearanceConfig("popup")}
+        light: page.light; motion: page.motion; foreground: page.textColor; surface: tokens.elevated; accent: page.accent
+        highContrast: page.highContrast
+        glassEnabled: !page.highContrast&&page.value("appearance/style","liquid")==="liquid"
+    }
+    ConfirmDialog {
+        id:resetDialog;objectName:"resetSettingsConfirm";title:qsTr("Restore defaults?");modal:true;anchors.centerIn:Overlay.overlay;width:Math.min(420,page.width-24)
         standardButtons:Dialog.Ok|Dialog.Cancel
         palette.window:tokens.elevated;palette.windowText:page.textColor;palette.buttonText:page.textColor
         contentItem:Label{text:page.pendingReset.kind==="all"?qsTr("This replaces your settings. Paired devices are kept."):page.pendingReset.kind==="appearance"?qsTr("This restores all appearance parameters for this scope."):qsTr("This restores the options in this section.");color:page.textColor;wrapMode:Text.Wrap}
         onAccepted:{if(page.pendingReset.kind==="all")page.controller.resetSettings();else if(page.pendingReset.kind==="lyrics")page.controller.resetLyricSettings(page.pendingReset.scope);else if(page.pendingReset.kind==="appearance")page.controller.resetAppearance(page.pendingReset.scope);else page.controller.resetSettingsGroup(page.pendingReset.group,page.pendingReset.section)}
     }
-    Dialog {
+    ConfirmDialog {
         id:presetNameDialog;objectName:"presetNameDialog";title:page.presetNameAction==="rename"?qsTr("Rename preset"):qsTr("Save preset")
         modal:true;anchors.centerIn:Overlay.overlay;width:Math.min(380,page.width-24);padding:20
         onOpened:{presetNameField.text=page.presetNameAction==="rename"?page.presetRenameFrom:"";presetNameField.forceActiveFocus();presetNameField.selectAll()}
-        background:Rectangle{radius:16;color:tokens.elevated;border.width:1;border.color:tokens.border}
         contentItem:Field{id:presetNameField;objectName:"presetNameField";placeholderText:qsTr("Preset name");maximumLength:64;Accessible.name:qsTr("Preset name");onAccepted:if(page.validPresetName(text,page.presetRenameFrom))presetNameDialog.accept()}
         footer:RowLayout {spacing:8
             Item{Layout.fillWidth:true}
@@ -675,11 +682,10 @@ Item {
         }
         onAccepted:{const name=presetNameField.text.trim();if(!page.validPresetName(name,page.presetRenameFrom))return;if(page.presetNameAction==="rename")page.controller.renameLyricPreset(page.presetRenameFrom,name);else page.controller.saveLyricPreset(name);page.selectedPresetName=name}
     }
-    Dialog {
+    ConfirmDialog {
         id:presetDeleteDialog;objectName:"presetDeleteDialog";title:qsTr("Delete preset?");modal:true;anchors.centerIn:Overlay.overlay;width:Math.min(380,page.width-24);padding:20
         property string presetName:""
         onOpened:presetName=page.effectivePresetName
-        background:Rectangle{radius:16;color:tokens.elevated;border.width:1;border.color:tokens.border}
         contentItem:Label{text:qsTr("The saved style “%1” will be removed.").arg(presetDeleteDialog.presetName);color:page.textColor;wrapMode:Text.Wrap}
         footer:RowLayout {spacing:8
             Item{Layout.fillWidth:true}
@@ -688,8 +694,8 @@ Item {
         }
         onAccepted:{page.controller.deleteLyricPreset(presetName);page.selectedPresetName=""}
     }
-    Dialog {
-        id:cacheDialog;title:qsTr("Clear lyrics cache?");modal:true;anchors.centerIn:Overlay.overlay;width:Math.min(420,page.width-24)
+    ConfirmDialog {
+        id:cacheDialog;objectName:"clearLyricsConfirm";title:qsTr("Clear lyrics cache?");modal:true;anchors.centerIn:Overlay.overlay;width:Math.min(420,page.width-24)
         standardButtons:Dialog.Ok|Dialog.Cancel
         contentItem:Label{text:qsTr("Cached lyrics will be removed.");color:page.textColor;wrapMode:Text.Wrap}
         palette.window:tokens.elevated;palette.windowText:page.textColor;palette.buttonText:page.textColor
