@@ -73,5 +73,3 @@ Windows 使用 **C++20 · Qt 6 Quick/QML · Win32/C++/WinRT**；Android 使用 *
 [构建与打包](docs/build-and-release.md) · [架构](docs/architecture.md) · [协议](protocol/README.md) · [测试记录](docs/testing.md) · [更新说明](CHANGELOG.md) · [隐私](docs/privacy.md) · [已知限制](docs/known-limitations.md)
 
 感谢 [qwindowkit](https://github.com/stdware/qwindowkit)、[liquidglass](https://github.com/shayann07/liquidglass)、[AndroidLiquidGlass / Backdrop](https://github.com/Kyant0/AndroidLiquidGlass) 与 Lucide 等开源项目。完整依赖与授权见 [第三方声明](THIRD_PARTY_NOTICES.md)，项目许可证见 [LICENSE](LICENSE)。
-
-产品名为 **DroidMediaLink**；仓库名为 **DroidMusicLink**。
