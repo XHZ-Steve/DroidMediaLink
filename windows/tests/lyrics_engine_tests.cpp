@@ -11,6 +11,8 @@
 #include <QJsonDocument>
 #include <QTimer>
 #include <QDebug>
+#include <QDateTime>
+#include <QUuid>
 #include <QBuffer>
 #include <QImage>
 
@@ -122,6 +124,36 @@ public:
    cover.m_coverTestStates["netease"]={{"status","error"}};cover.m_coverRequestKey.clear();cover.enhanceCover();if(cover.m_coverRetry.isActive())return 97;
    cover.m_coverSource.clear();cover.m_enhancedPixels=QSize(2000,2000);if(!cover.coverSource().contains("363"))return 99;
    cover.m_media["durationMs"]=0;const auto artwork=cover.artwork();cover.testCoverProvider("qq");if(cover.m_coverTestStates["qq"].value("status")!="incomplete"||cover.artwork()!=artwork)return 98;
+  }
+  {
+   Bridge volume;volume.m_online=true;volume.m_media={{"commands",QJsonArray{"volume"}},{"volume",2},{"maxVolume",10}};
+   auto reply=[&](QString id,bool ok,int level){volume.receive(QString::fromUtf8(QJsonDocument(QJsonObject{{"protocolVersion",1},{"messageId",QUuid::createUuid().toString()},{"timestamp",QDateTime::currentMSecsSinceEpoch()},{"type","command_result"},{"payload",QJsonObject{{"requestId",id},{"success",ok},{"volume",level},{"maxVolume",10}}}}).toJson()));};
+   volume.command("volume",.4);const auto first=volume.m_volumeRequest;
+   volume.command("volume",.6);volume.command("volume",.8);
+   if(first.isEmpty()||volume.m_pending.size()!=1||volume.requestedVolume()!=.8)return 100;
+   reply(first,true,4);const auto second=volume.m_volumeRequest;
+   if(second.isEmpty()||second==first||volume.m_pending.size()!=1||volume.requestedVolume()!=.8)return 101;
+   reply(first,true,1);if(volume.volume()!=.4)return 102;
+   reply(second,false,5);if(volume.volumePending()||volume.volume()!=.5)return 103;
+  }
+  {
+   bridge.m_nativeUpdate=[](const char* json){nativePayload=QJsonDocument::fromJson(json).object();return 0;};
+   bridge.m_online=true;bridge.setUiVisible(false);bridge.applyMedia({{"state","playing"},{"positionMs",1000},{"durationMs",30000},{"speed",1}});
+   QEventLoop wait;QTimer::singleShot(1200,&wait,&QEventLoop::quit);wait.exec();
+   if(nativePayload["positionMs"].toInteger()<1500||bridge.m_progress.isActive())return 104;
+   bridge.m_online=false;bridge.m_nativeUpdate=nullptr;
+  }
+  {
+   QTemporaryDir parent;Bridge cache;
+   QFile manual(cache.cachePath()+"/TEST.manual.lrc");if(!manual.open(QIODevice::WriteOnly))return 105;manual.write("[00:00]TEST manual");manual.close();
+   cache.setCacheDirectory(QUrl::fromLocalFile(parent.path()));const auto root=cache.cachePath();
+   if(!root.endsWith("/DroidMediaLink-cache")||!QFile::exists(root+"/TEST.manual.lrc"))return 106;
+   QFile cover(root+"/covers/TEST.png");if(!cover.open(QIODevice::WriteOnly))return 107;cover.write(QByteArray(128,'x'));cover.close();
+   QFile lyric(root+"/TEST.lyrics.json");if(!lyric.open(QIODevice::WriteOnly))return 108;lyric.write(QByteArray(64,'x'));lyric.close();
+   cache.refreshCacheUsage();QEventLoop wait;QTimer::singleShot(800,&wait,&QEventLoop::quit);wait.exec();
+   if(cache.cacheUsage()["coverBytes"].toLongLong()!=128||cache.cacheUsage()["lyricBytes"].toLongLong()!=64)return 109;
+   cache.clearCoverArtCache();cache.clearLyricsCache();if(QFile::exists(cover.fileName())||QFile::exists(lyric.fileName())||!QFile::exists(manual.fileName())||!QFile::exists(root+"/TEST.manual.lrc"))return 110;
+   cache.resetSettings();if(cache.cachePath()==root||!QFile::exists(cache.cachePath()+"/TEST.manual.lrc"))return 111;
   }
   qInfo()<<"PASS: deferred cover metadata, late phone dimensions, and independent non-destructive cover diagnostics";
   return 0;

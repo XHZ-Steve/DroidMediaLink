@@ -10,6 +10,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
+#include <QQuickItem>
 #include <QQuickStyle>
 #include <QSystemTrayIcon>
 #include <QPainter>
@@ -36,7 +37,18 @@ class DragRefreshGuard final:public QAbstractNativeEventFilter {
  Bridge &bridge;QSet<HWND> moving;
 public:explicit DragRefreshGuard(Bridge &value):bridge(value){}
  ~DragRefreshGuard(){if(auto app=QCoreApplication::instance())app->removeNativeEventFilter(this);}
- bool nativeEventFilter(const QByteArray &,void *message,qintptr *)override{auto msg=static_cast<MSG*>(message);if(msg->message==WM_ENTERSIZEMOVE){moving.insert(msg->hwnd);bridge.setDragging(true);}else if(msg->message==WM_EXITSIZEMOVE){moving.remove(msg->hwnd);bridge.setDragging(!moving.isEmpty());}return false;}
+ bool nativeEventFilter(const QByteArray &,void *message,qintptr *)override{
+  const auto msg=static_cast<MSG*>(message);
+  if(msg->message==WM_ENTERSIZEMOVE){moving.insert(msg->hwnd);bridge.setDragging(true);}
+  else if(msg->message==WM_EXITSIZEMOVE||msg->message==WM_NCDESTROY){
+   if(!moving.remove(msg->hwnd))return false;
+   QPointer<QQuickWindow> window;for(auto candidate:QGuiApplication::topLevelWindows())if(reinterpret_cast<HWND>(candidate->winId())==msg->hwnd)window=qobject_cast<QQuickWindow*>(candidate);
+   // Native move loops consume the release. Cancel the QML grab only after
+   // returning from that loop, so the next press/click has a clean gesture.
+   QTimer::singleShot(0,&bridge,[this,window]{if(window&&window->mouseGrabberItem())window->mouseGrabberItem()->ungrabMouse();bridge.setDragging(!moving.isEmpty());});
+  }
+  return false;
+ }
 };
 class LinkApplication final:public QApplication {
 public:

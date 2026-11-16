@@ -17,6 +17,7 @@
 #include "LyricProviders.h"
 class Bridge : public QObject {
  Q_OBJECT
+ Q_PROPERTY(QVariantMap cacheUsage READ cacheUsage NOTIFY cacheUsageChanged)
  Q_PROPERTY(bool updateBusy READ updateBusy NOTIFY updateChanged)
  Q_PROPERTY(double updateProgress READ updateProgress NOTIFY updateChanged)
  Q_PROPERTY(QString pairingCode READ pairingCode NOTIFY changed)
@@ -36,6 +37,8 @@ class Bridge : public QObject {
  Q_PROPERTY(bool favoriteKnown READ favoriteKnown NOTIFY changed)
  Q_PROPERTY(double volume READ volume NOTIFY changed)
  Q_PROPERTY(bool volumeKnown READ volumeKnown NOTIFY changed)
+ Q_PROPERTY(bool volumePending READ volumePending NOTIFY changed)
+ Q_PROPERTY(double requestedVolume READ requestedVolume NOTIFY changed)
  Q_PROPERTY(QVariantList lyrics READ lyrics NOTIFY lyricsChanged)
  Q_PROPERTY(int currentLine READ currentLine NOTIFY lyricLineChanged)
  Q_PROPERTY(qint64 lyricPosition READ lyricPosition NOTIFY lyricProgressChanged)
@@ -59,6 +62,9 @@ class Bridge : public QObject {
  Q_PROPERTY(QVariantList lyricResults READ lyricResults NOTIFY lyricResultsChanged)
 public:
  Q_INVOKABLE void refreshCoverArt();
+ Q_INVOKABLE void refreshCacheUsage();
+ Q_INVOKABLE void setCacheDirectory(QUrl directory);
+ QVariantMap cacheUsage()const{return m_cacheUsage;}
  Q_INVOKABLE void clearCoverArtCache();
  void setDragging(bool dragging);
  explicit Bridge(QObject *parent=nullptr);
@@ -90,6 +96,8 @@ public:
  Q_INVOKABLE void renameLyricPreset(QString oldName,QString newName);
  Q_INVOKABLE void deleteLyricPreset(QString name);
  Q_INVOKABLE void resetLyricSettings(QString scope);
+ bool volumePending()const{return !m_volumeRequest.isEmpty();}
+ double requestedVolume()const{return m_volumeTarget;}
  bool volumeKnown()const{return m_media.value("maxVolume").toDouble()>0;}
  double volume()const{const auto maximum=m_media.value("maxVolume").toDouble();return maximum>0?qBound(0.,m_media.value("volume").toDouble()/maximum,1.):0.;}
  QVariantList devices()const{return m_devices;}
@@ -97,6 +105,9 @@ public:
  QVariantList appearanceDescriptors()const;
  QString ambientAccent()const{auto color=m_coverPalette.primary;if(color.hslHueF()>=0)color.setHslF(color.hslHueF(),qMin(.85,color.hslSaturationF()+.12),qMin(.8,color.lightnessF()+.15));return color.name();}
  Q_INVOKABLE QVariantMap appearanceConfig(QString scope)const;
+ Q_INVOKABLE QVariantMap lyricStyleConfig(QString prefix)const;
+ Q_INVOKABLE void resetSetting(QString key);
+ Q_INVOKABLE void resetAppearanceValue(QString scope,QString key);
  Q_INVOKABLE bool appearanceInherited(QString scope)const;
  Q_INVOKABLE void setAppearance(QString scope,QString key,QVariant value);
  Q_INVOKABLE void setAppearanceInherited(QString scope,bool inherited);
@@ -148,6 +159,7 @@ signals:
  void lyricProvidersChanged();
  void coverProvidersChanged();
  void commandFinished(QString requestId,bool success,QString error);
+ void cacheUsageChanged();
  void updateChanged();
  void notification(QString message); void updateAvailable(QString version,QString url);
 private:
@@ -155,6 +167,7 @@ private:
  friend class UpdateTests;
  QNetworkAccessManager m_updateNetwork;QJsonObject m_updateAsset;bool m_updateBusy=false;double m_updateProgress=-1;QPointer<QNetworkReply> m_updateReply;
  QSettings m_settings;QWebSocket m_socket;QNetworkAccessManager m_network;QUdpSocket m_mdns;
+ QVariantMap m_cacheUsage;QTimer m_cacheScan,m_smtcClock;bool m_cacheScanning=false,m_cacheRescan=false;
  QTimer m_progress,m_heartbeat,m_retry,m_pairTimeout;QElapsedTimer m_anchor,m_lastPong;
  void schedulePublishedCover();void fetchPublishedCover();
  PublishedCoverArtProvider *m_publishedCover=nullptr;QTimer m_publishedCoverDelay;QString m_publishedCoverKey;quint64 m_publishedCoverGeneration=0;int m_publishedCoverAttempts=0;bool m_fromPublishedCover=false,m_publishedCoverActive=false;QByteArray m_receivedArtworkDigest;
@@ -175,6 +188,7 @@ private:
  CoverPalette m_coverPalette;QByteArray m_artworkDigest;
  QString m_status,m_url,m_pin,m_code,m_artwork,m_accent="#9bc3c6",m_lyricKey;
  bool m_online=false,m_manual=false;int m_backoff=0;qint64 m_position=0;
+ QString m_volumeRequest;double m_volumeTarget=0;bool m_volumeQueued=false;
  QHash<QString,qint64> m_pending; QLibrary m_native;
  QStringList m_seen;
  QString m_deviceId,m_deviceName,m_observedPin;QByteArray m_clientNonce,m_serverCommit;

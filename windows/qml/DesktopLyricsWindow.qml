@@ -50,7 +50,7 @@ Window {
    GlassMaterial{anchors.fill:parent;sourceItem:ambient;active:window.visible;configuration:window.controller.appearanceConfig("desktop");glassEnabled:window.pref("appearance/style","liquid")==="liquid";motion:window.pref("motion",true);dark:true;fallbackColor:"#66222a35"}
   }
  }
- MouseArea {anchors.fill:parent;enabled:!window.clickThrough;acceptedButtons:Qt.LeftButton|Qt.RightButton;onPressed:function(mouse){if(mouse.button===Qt.RightButton)window.editRequested();else window.startSystemMove()};onDoubleClicked:window.editMode=!window.editMode}
+ MouseArea {anchors.fill:parent;enabled:!window.clickThrough;acceptedButtons:Qt.LeftButton|Qt.RightButton;onPressed:function(mouse){if(mouse.button===Qt.RightButton)window.editRequested();else Qt.callLater(function(){window.startSystemMove()})};onDoubleClicked:window.editMode=!window.editMode}
  // This body never changes geometry when editing controls appear.
  Loader {id:bodyLoader;objectName:"desktopLyricBody";anchors.fill:parent;anchors.margins:12;active:window.visible
   sourceComponent:LyricView {
@@ -69,18 +69,21 @@ Window {
   background:Rectangle{radius:8;color:button.down?"#35d4e4fa":button.hovered?"#20d4e4fa":"transparent";border.width:button.visualFocus?2:0;border.color:"#b8d5df"}
   contentItem:Text{text:button.text;color:"#eef2f5";font:button.font;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter;renderType:Text.NativeRendering}
  }
- Item {id:bar;anchors.horizontalCenter:parent.horizontalCenter;y:6;width:Math.min(window.width-24,400);height:42;z:10
+ Item {id:bar;anchors.horizontalCenter:parent.horizontalCenter;y:6;width:Math.min(window.width-24,560);height:42;z:10
   visible:opacity>0;opacity:window.controlsVisible?1:0;Behavior on opacity{NumberAnimation{duration:160}}
   Rectangle{id:barBackdrop;anchors.fill:parent;visible:false;gradient:Gradient{GradientStop{position:0;color:"#344354"}GradientStop{position:1;color:"#1b2637"}}}
   GlassMaterial {anchors.fill:parent;sourceItem:barBackdrop;cornerRadius:13;dark:true;active:window.visible&&bar.visible;glassEnabled:window.pref("appearance/style","liquid")==="liquid";tintColor:"#233044";tintStrength:.25;fallbackColor:"#db253144"}
   RowLayout {anchors.fill:parent;anchors.margins:4;spacing:window.width<360?2:4
-   EditButton{text:"-";Accessible.name:qsTr("Decrease font size");onClicked:window.controller.setSetting("desktopLyrics/fontSize",Math.max(16,window.pref("desktopLyrics/fontSize",36)-2))}
-   Label{text:String(window.pref("desktopLyrics/fontSize",36));color:"#eef2f5";horizontalAlignment:Text.AlignHCenter;Layout.preferredWidth:24;font.pixelSize:13}
-   EditButton{text:"+";Accessible.name:qsTr("Increase font size");onClicked:window.controller.setSetting("desktopLyrics/fontSize",Math.min(96,window.pref("desktopLyrics/fontSize",36)+2))}
+   EditButton{visible:window.width>=460;text:"-";Accessible.name:qsTr("Decrease font size");onClicked:window.controller.setSetting("desktopLyrics/fontSize",Math.max(16,window.pref("desktopLyrics/fontSize",36)-2))}
+   Label{visible:window.width>=460;text:String(window.pref("desktopLyrics/fontSize",36));color:"#eef2f5";horizontalAlignment:Text.AlignHCenter;Layout.preferredWidth:24;font.pixelSize:13}
+   EditButton{visible:window.width>=460;text:"+";Accessible.name:qsTr("Increase font size");onClicked:window.controller.setSetting("desktopLyrics/fontSize",Math.min(96,window.pref("desktopLyrics/fontSize",36)+2))}
    Item{Layout.fillWidth:true}
+   EditButton{text:"−";Accessible.name:qsTr("Lyrics earlier");ToolTip.visible:hovered;ToolTip.text:qsTr("Lyrics earlier");onClicked:window.controller.setSetting("lyrics/offset",Math.max(-10000,window.pref("lyrics/offset",0)-100))}
+   Label{text:(window.pref("lyrics/offset",0)/1000).toFixed(1)+" s";color:"#eef2f5";font.pixelSize:12;Layout.preferredWidth:46;horizontalAlignment:Text.AlignHCenter}
+   EditButton{text:"+";Accessible.name:qsTr("Lyrics later");ToolTip.visible:hovered;ToolTip.text:qsTr("Lyrics later");onClicked:window.controller.setSetting("lyrics/offset",Math.min(10000,window.pref("lyrics/offset",0)+100))}
    EditButton{text:Icons.glyph("settings");font.family:desktopIcons.name;font.pixelSize:16;Accessible.name:qsTr("Settings");ToolTip.visible:hovered;ToolTip.text:qsTr("Settings");onClicked:window.settingsRequested()}
-   EditButton{text:qsTr("Lock");onClicked:{window.controller.setSetting("desktopClickThrough",true);window.editMode=false;window.hoverLatched=false}}
-   EditButton{text:qsTr("Done");onClicked:{window.editMode=false;window.hoverLatched=false}}
+   EditButton{text:Icons.glyph("lock");font.family:desktopIcons.name;Accessible.name:qsTr("Lock");onClicked:{window.controller.setSetting("desktopClickThrough",true);window.editMode=false;window.hoverLatched=false}}
+   EditButton{visible:window.width>=460;text:qsTr("Done");onClicked:{window.editMode=false;window.hoverLatched=false}}
    EditButton{text:"×";Accessible.name:qsTr("Close lyrics");onClicked:window.hideRequested()}
   }
  }
@@ -96,7 +99,7 @@ Window {
    width:atLeft||atRight?grip:window.width-grip*2;height:atTop||atBottom?grip:window.height-grip*2
    enabled:window.controlsVisible&&!window.clickThrough;z:20
    cursorShape:(atLeft||atRight)&&(atTop||atBottom)?(atLeft===atTop?Qt.SizeFDiagCursor:Qt.SizeBDiagCursor):atLeft||atRight?Qt.SizeHorCursor:Qt.SizeVerCursor
-   onPressed:window.startSystemResize(modelData)
+   onPressed:Qt.callLater(function(){window.startSystemResize(modelData)})
   }
  }
  Shortcut{sequence:"Escape";enabled:window.visible&&window.controlsVisible;onActivated:{window.editMode=false;window.hoverLatched=false}}

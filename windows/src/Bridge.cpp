@@ -1,4 +1,7 @@
 #include "Bridge.h"
+#include <QFutureWatcher>
+#include <QtConcurrent>
+#include <QDirIterator>
 #include "FactoryDefaults.h"
 #include "ReleaseUpdate.h"
 #include <QScopedValueRollback>
@@ -45,11 +48,13 @@ static void nativeCommand(const char *name,double value){QString command=QString
 static QByteArray protect(QByteArray bytes,bool decrypt){DATA_BLOB input{DWORD(bytes.size()),reinterpret_cast<BYTE*>(bytes.data())},output{};BOOL ok=decrypt?CryptUnprotectData(&input,nullptr,nullptr,nullptr,nullptr,CRYPTPROTECT_UI_FORBIDDEN,&output):CryptProtectData(&input,L"DroidMediaLink",nullptr,nullptr,nullptr,CRYPTPROTECT_UI_FORBIDDEN,&output);if(!ok)return {};QByteArray result(reinterpret_cast<char*>(output.pbData),output.cbData);SecureZeroMemory(output.pbData,output.cbData);LocalFree(output.pbData);return result;}
 Bridge::Bridge(QObject *parent):QObject(parent),m_status(tr("Disconnected")){
  m_updateNetwork.setProxyFactory(new ReleaseUpdate::SystemProxyFactory);
+ m_cacheScan.setSingleShot(true);m_cacheScan.setInterval(250);connect(&m_cacheScan,&QTimer::timeout,this,&Bridge::refreshCacheUsage);m_cacheScan.start();
+ m_smtcClock.setInterval(1000);connect(&m_smtcClock,&QTimer::timeout,this,[this]{if(m_online&&playing()&&setting("media/smtc",true).toBool())updateNative();});m_smtcClock.start();
  for(auto defaults=factoryDefaults();auto key:defaults.keys())if(!m_settings.contains(key))m_settings.setValue(key,defaults.value(key).toVariant());
  if(!m_settings.value("preferences/lyrics/autoMatchMigration",false).toBool()){m_settings.setValue("preferences/lyrics/online",true);m_settings.setValue("preferences/lyrics/autoMatch",true);m_settings.setValue("preferences/lyrics/autoMatchMigration",true);}
  if(!m_settings.contains("preferences/desktopLyrics/fontSize")&&m_settings.contains("preferences/lyricSize"))m_settings.setValue("preferences/desktopLyrics/fontSize",m_settings.value("preferences/lyricSize"));
  m_coverService=new CoverArtService(cachePath()+"/covers",this);m_publishedCover=new PublishedCoverArtProvider(this);m_publishedCoverDelay.setSingleShot(true);connect(&m_publishedCoverDelay,&QTimer::timeout,this,&Bridge::fetchPublishedCover);
- m_coverService->progress=[this](QString id,QVariantMap state){m_coverStates[id]=state;emit coverProvidersChanged();};
+ m_coverService->progress=[this](QString id,QVariantMap state){m_coverStates[id]=state;emit coverProvidersChanged();m_cacheScan.start();};
  m_coverTestService=new CoverArtService(m_coverTestDirectory.isValid()?m_coverTestDirectory.path():cachePath()+"/cover-tests",this);m_coverTestService->setBudget(32);
  m_coverTestService->progress=[this](QString id,QVariantMap state){m_coverTestStates[id]=state;emit coverProvidersChanged();};
  m_coverRetry.setSingleShot(true);connect(&m_coverRetry,&QTimer::timeout,this,[this]{m_coverRequestKey.clear();enhanceCover(true);});
@@ -75,14 +80,14 @@ Bridge::Bridge(QObject *parent):QObject(parent),m_status(tr("Disconnected")){
   else {if(!m_pin.isEmpty()&&m_observedPin!=m_pin)emit notification(tr("Device certificate changed. Compare the code on your phone again."));beginPairing();}
  });
  connect(&m_socket,&QWebSocket::textMessageReceived,this,&Bridge::receive);
- connect(&m_socket,&QWebSocket::disconnected,this,[this]{m_online=false;m_authSent=false;m_artworkRetry.stop();m_heartbeat.stop();if(m_pairing)m_manual=true;clearPairing();m_pending.clear();emit changed();updateNative();if(!m_manual){setStatus(tr("Reconnecting"));retry();}});
+ connect(&m_socket,&QWebSocket::disconnected,this,[this]{m_online=false;m_authSent=false;m_artworkRetry.stop();m_heartbeat.stop();if(m_pairing)m_manual=true;clearPairing();m_pending.clear();m_volumeRequest.clear();m_volumeQueued=false;emit changed();updateNative();if(!m_manual){setStatus(tr("Reconnecting"));retry();}});
  connect(&m_socket,&QWebSocket::errorOccurred,this,[this](QAbstractSocket::SocketError){setStatus(tr("Connection failed: %1").arg(m_socket.errorString()));if(!m_manual)retry();});
  m_pairTimeout.setSingleShot(true);connect(&m_pairTimeout,&QTimer::timeout,this,[this]{if(m_pairing){cancelPairing();setStatus(tr("Pairing expired"));}});
  connect(&m_progress,&QTimer::timeout,this,[this]{emit progressChanged();updateLyricClock();});m_progress.start(250);
  m_artworkRetry.setSingleShot(true);connect(&m_artworkRetry,&QTimer::timeout,this,[this]{if(!m_online||!m_peerFeatures.contains("get_snapshot")||!m_artwork.isEmpty()||title().isEmpty())return;send("get_snapshot");++m_artworkRetryAttempts;const int delays[]={800,1800,4000,8000};if(m_artworkRetryAttempts<4)m_artworkRetry.start(delays[m_artworkRetryAttempts]);});
  m_lyricClock.setTimerType(Qt::PreciseTimer);m_lyricClock.setInterval(16);connect(&m_lyricClock,&QTimer::timeout,this,[this]{updateLyricClock();});
  connect(this,&Bridge::changed,this,&Bridge::updateLyricClock);connect(this,&Bridge::settingsChanged,this,&Bridge::updateLyricClock);
- connect(&m_heartbeat,&QTimer::timeout,this,[this]{if(m_lastPong.elapsed()>45000){m_socket.abort();return;}send("ping");const auto now=QDateTime::currentMSecsSinceEpoch();for(auto i=m_pending.begin();i!=m_pending.end();){if(now-i.value()>8000){emit notification(tr("Command timed out"));i=m_pending.erase(i);}else ++i;}});
+ connect(&m_heartbeat,&QTimer::timeout,this,[this]{if(m_lastPong.elapsed()>45000){m_socket.abort();return;}send("ping");const auto now=QDateTime::currentMSecsSinceEpoch();for(auto i=m_pending.begin();i!=m_pending.end();){if(now-i.value()>8000){if(i.key()==m_volumeRequest){m_volumeRequest.clear();m_volumeQueued=false;emit changed();}emit commandFinished(i.key(),false,"timeout");emit notification(tr("Command timed out"));i=m_pending.erase(i);}else ++i;}});
  m_retry.setSingleShot(true);connect(&m_retry,&QTimer::timeout,this,[this]{if(!m_manual&&setting("connection/autoReconnect",true).toBool())m_socket.open(QUrl(m_url));});
  connect(&m_mdns,&QUdpSocket::readyRead,this,[this]{
   while(m_mdns.hasPendingDatagrams()){
@@ -129,7 +134,7 @@ void Bridge::receive(QString message){if(message.toUtf8().size()>4*1024*1024){m_
  if(!m_online)return;
  if(type=="capabilities"){m_peerFeatures.clear();const auto features=p.value("features").toArray();for(int i=0;i<16&&i<features.size();++i){const auto feature=features[i].toString();if(feature=="volume_state"||feature=="get_snapshot")m_peerFeatures.insert(feature);}send("capabilities",{{"features",QJsonArray{"volume_state","get_snapshot"}}});return;}
  if(type=="session_snapshot"||type=="session_changed"||type=="metadata_changed"||type=="playback_state"||type=="position_anchor"||type=="available_commands"||type=="volume_state")applyMedia(p);
- if(type=="command_result"){const auto request=p.value("requestId").toString();if(!m_pending.contains(request))return;m_pending.remove(request);if(p.contains("volume")&&p.contains("maxVolume"))applyMedia({{"volume",p.value("volume")},{"maxVolume",p.value("maxVolume")}});emit commandFinished(request,p.value("success").toBool(),p.value("error").toString());if(p.contains("success")&&!p.value("success").toBool())emit notification(p.value("error").toString()=="track_changed"?tr("Track changed; try again"):p.value("error").toString(tr("Command unavailable")));}
+ if(type=="command_result"){const auto request=p.value("requestId").toString();if(!m_pending.contains(request))return;m_pending.remove(request);const bool volumeReply=request==m_volumeRequest;const bool nextVolume=volumeReply&&m_volumeQueued&&p.value("success").toBool();const auto target=m_volumeTarget;if(volumeReply){m_volumeRequest.clear();m_volumeQueued=false;}if(p.contains("volume")&&p.contains("maxVolume"))applyMedia({{"volume",p.value("volume")},{"maxVolume",p.value("maxVolume")}});if(nextVolume)command("volume",target);else if(volumeReply)emit changed();emit commandFinished(request,p.value("success").toBool(),p.value("error").toString());if(p.contains("success")&&!p.value("success").toBool())emit notification(p.value("error").toString()=="track_changed"?tr("Track changed; try again"):p.value("error").toString(tr("Command unavailable")));}
  if(type=="lyrics_payload"){
   const auto text=p.value("lrc").toString();if(text.toUtf8().size()>65536)return;
   if(p.contains("title")&&p.value("title").toString()!=title())return;
@@ -142,12 +147,12 @@ void Bridge::receive(QString message){if(message.toUtf8().size()>4*1024*1024){m_
 QStringList Bridge::commands()const{QStringList list;for(const auto&v:m_media.value("commands").toArray())list<<v.toString();return list;}
 qint64 Bridge::position()const{qint64 value=m_position;if(playing()&&m_anchor.isValid())value+=qint64(m_anchor.elapsed()*qBound(-16.,m_media.value("speed").toDouble(1),16.));return qBound<qint64>(0,value,duration()>0?duration():std::numeric_limits<qint64>::max());}
 int Bridge::currentLine()const{return m_currentLyricLine;}
-void Bridge::setLyrics(QVariantList rows,QString source){m_lyrics=LyricTimeline::validated(rows);m_lyricSource=std::move(source);m_lyricsLoading=false;m_lyricTimes.clear();m_lyricTimes.reserve(m_lyrics.size());if(m_lyrics.isEmpty()||!m_lyrics.first().toMap().value("untimed").toBool())for(const auto &row:m_lyrics)m_lyricTimes<<row.toMap().value("time").toLongLong();emit lyricsChanged();updateLyricClock();}
+void Bridge::setLyrics(QVariantList rows,QString source){m_lyrics=LyricTimeline::validated(rows);m_lyricSource=std::move(source);m_lyricsLoading=false;m_lyricTimes.clear();m_lyricTimes.reserve(m_lyrics.size());if(m_lyrics.isEmpty()||!m_lyrics.first().toMap().value("untimed").toBool())for(const auto &row:m_lyrics)m_lyricTimes<<row.toMap().value("time").toLongLong();emit lyricsChanged();updateLyricClock();m_cacheScan.start();}
 void Bridge::updateLyricClock(){if(m_dragging)return;const auto line=LyricTimeline::lineAt(m_lyricTimes,lyricPosition());if(line!=m_currentLyricLine){m_currentLyricLine=line;emit lyricLineChanged();}emit lyricProgressChanged();const bool run=m_uiVisible&&!m_lyricSurfaces.isEmpty()&&playing()&&!m_lyrics.isEmpty();if(run&&!m_lyricClock.isActive())m_lyricClock.start();else if(!run)m_lyricClock.stop();}
 void Bridge::setLyricsVisible(QString surface,bool visible){if(surface.size()>100)return;if(visible)m_lyricSurfaces.insert(surface);else m_lyricSurfaces.remove(surface);updateLyricClock();}
 void Bridge::cancelLyricRequest(){++m_lyricGeneration;if(m_lyricProviders)m_lyricProviders->cancel();if(m_lyricReply){auto reply=m_lyricReply;m_lyricReply=nullptr;reply->abort();}m_lyricsLoading=false;}
 
-void Bridge::command(QString name,double value){if(!QStringList{"play","pause","toggle","next","previous","seek","volume","favorite"}.contains(name))return;if(!m_online||m_pending.size()>=64)return;static QElapsedTimer limit;static int burst=0;if(!limit.isValid()||limit.elapsed()>1000){limit.restart();burst=0;}if(++burst>20)return;QString capability=name=="toggle"?(playing()?"pause":"play"):name;if(!commands().contains(capability)&&!commands().contains(name)){emit notification(tr("Command unavailable"));return;}if(!std::isfinite(value)||(name=="favorite"&&value!=0&&value!=1))return;const auto id=QUuid::createUuid().toString(QUuid::WithoutBraces);QJsonObject p{{"requestId",id},{"command",name},{"value",value}};if(name=="seek"){value=qBound(0.,value,double(duration()));p["positionMs"]=value;p["value"]=value;}if(name=="volume")p["volume"]=qBound(0.,value,1.);if(name=="favorite"){p["sessionId"]=m_media.value("sessionId");p["title"]=title();p["artist"]=artist();p["album"]=album();}m_pending[id]=QDateTime::currentMSecsSinceEpoch();send("command_request",p);}
+void Bridge::command(QString name,double value){if(!QStringList{"play","pause","toggle","next","previous","seek","volume","favorite"}.contains(name))return;if(!m_online||m_pending.size()>=64)return;if(name=="volume"&&!m_volumeRequest.isEmpty()){if(std::isfinite(value)){m_volumeTarget=qBound(0.,value,1.);m_volumeQueued=true;emit changed();}return;}static QElapsedTimer limit;static int burst=0;if(!limit.isValid()||limit.elapsed()>1000){limit.restart();burst=0;}if(++burst>20)return;QString capability=name=="toggle"?(playing()?"pause":"play"):name;if(!commands().contains(capability)&&!commands().contains(name)){emit notification(tr("Command unavailable"));return;}if(!std::isfinite(value)||(name=="favorite"&&value!=0&&value!=1))return;const auto id=QUuid::createUuid().toString(QUuid::WithoutBraces);QJsonObject p{{"requestId",id},{"command",name},{"value",value}};if(name=="seek"){value=qBound(0.,value,double(duration()));p["positionMs"]=value;p["value"]=value;}if(name=="volume")p["volume"]=qBound(0.,value,1.);if(name=="favorite"){p["sessionId"]=m_media.value("sessionId");p["title"]=title();p["artist"]=artist();p["album"]=album();}if(name=="volume"){m_volumeRequest=id;m_volumeTarget=qBound(0.,value,1.);emit changed();}m_pending[id]=QDateTime::currentMSecsSinceEpoch();send("command_request",p);}
 void Bridge::applyMedia(QJsonObject media){
  if(m_dragging){if(media.contains("positionMs"))m_dragReceipt.restart();for(auto it=media.begin();it!=media.end();++it)m_deferredMedia[it.key()]=it.value();return;}
  const auto oldLyricKey=lyricKey();
@@ -195,7 +200,7 @@ void Bridge::applyMedia(QJsonObject media){
  if(phoneLyricsChanged)emit lyricProvidersChanged();
  if(!m_fromPublishedCover)schedulePublishedCover();enhanceCover();applyTheme();emit changed();emit progressChanged();updateNative();
 }
-QString Bridge::cachePath()const{const auto args=QCoreApplication::arguments();const auto profile=args.indexOf("--test-profile");auto path=profile>=0&&profile+1<args.size()?QDir(args[profile+1]).absoluteFilePath("cache"):QStandardPaths::writableLocation(QStandardPaths::CacheLocation);QDir().mkpath(path);return path;}
+QString Bridge::cachePath()const{const auto args=QCoreApplication::arguments();const auto profile=args.indexOf("--test-profile");auto path=profile>=0&&profile+1<args.size()?QDir(args[profile+1]).absoluteFilePath("cache"):(m_settings.value("preferences/cache/directory").toString().isEmpty()?QStandardPaths::writableLocation(QStandardPaths::CacheLocation):QDir(m_settings.value("preferences/cache/directory").toString()).absoluteFilePath("DroidMediaLink-cache"));QDir().mkpath(path);return path;}
 void Bridge::previewCoverForTest(QString path){
  QImageReader reader(path);const auto size=reader.size();
  if(!size.isValid()||size.width()>8192||size.height()>8192||qint64(size.width())*size.height()>33554432)return;
@@ -377,7 +382,7 @@ void Bridge::requestLyrics(QUrl url,QString key,quint64 generation,bool manual,b
   reply->deleteLater();
  });
 }
-void Bridge::clearLyricsCache(){cancelLyricRequest();QDir dir(cachePath());for(const auto &file:dir.entryList({"*.lrc","*.lyrics.json"},QDir::Files))if(!file.endsWith(".manual.lrc"))dir.remove(file);m_lyricKey.clear();fetchLyrics();}
+void Bridge::clearLyricsCache(){cancelLyricRequest();QDir dir(cachePath());for(const auto &file:dir.entryList({"*.lrc","*.lyrics.json"},QDir::Files))if(!file.endsWith(".manual.lrc"))dir.remove(file);m_cacheScan.start();emit notification(tr("Lyrics cache cleared"));}
 #include "ReleaseUpdateBackend.inc"
 
 
@@ -419,7 +424,7 @@ void Bridge::testLyricProvider(QString provider){if(provider=="phone"){if(m_onli
 void Bridge::setDragging(bool dragging){if(m_dragging==dragging)return;m_dragging=dragging;if(dragging){m_progress.stop();m_lyricClock.stop();}else{if(!m_deferredMedia.isEmpty()){auto latest=m_deferredMedia;m_deferredMedia={};if(m_dragReceipt.isValid()&&latest.contains("positionMs")&&latest.value("state").toString(m_media.value("state").toString())=="playing")latest["positionMs"]=latest.value("positionMs").toInteger()+qint64(m_dragReceipt.elapsed()*latest.value("speed").toDouble(m_media.value("speed").toDouble(1)));m_dragReceipt.invalidate();applyMedia(latest);}if(!m_pendingCover.path.isEmpty()){auto cover=m_pendingCover;m_pendingCover={};applyEnhancedCover(cover);}setUiVisible(m_uiVisible);emit progressChanged();updateLyricClock();}}
 
 void Bridge::refreshCoverArt(){m_coverTestService->cancel();m_coverTestStates.clear();m_coverRetry.stop();m_coverAttempts=0;m_publishedCoverKey.clear();schedulePublishedCover();enhanceCover(true);}
-void Bridge::clearCoverArtCache(){m_coverRetry.stop();m_coverTestService->clear();m_coverStates.clear();m_coverTestStates.clear();m_coverSource.clear();emit coverProvidersChanged();m_pendingCover={};m_enhancedPixels={};m_coverService->clear();m_coverRequestKey.clear();m_enhancedPixels={};m_nativeArtwork=m_phoneNativeArtwork;m_artwork=m_phoneArtwork;m_artworkDigest=m_phoneArtworkDigest;emit changed();updateNative();}
+void Bridge::clearCoverArtCache(){m_coverRetry.stop();m_coverTestService->clear();m_coverStates.clear();m_coverTestStates.clear();m_coverSource.clear();emit coverProvidersChanged();m_pendingCover={};m_enhancedPixels={};m_coverService->clear();m_coverRequestKey.clear();m_enhancedPixels={};m_nativeArtwork=m_phoneNativeArtwork;m_artwork=m_phoneArtwork;m_artworkDigest=m_phoneArtworkDigest;emit changed();updateNative();m_cacheScan.start();emit notification(tr("Cover cache cleared"));}
 void Bridge::enhanceCover(bool refresh){
  const auto mode=setting("cover/mode","off").toString();
  if(mode=="off"||setting("cover/phoneOnly",false).toBool()){m_coverRetry.stop();m_pendingCover={};m_coverService->cancel();m_coverRequestKey.clear();m_coverSource.clear();emit coverProvidersChanged();if(m_artwork!=m_phoneArtwork){m_enhancedPixels={};m_nativeArtwork=m_phoneNativeArtwork;m_artwork=m_phoneArtwork;m_artworkDigest=m_phoneArtworkDigest;emit changed();updateNative();}return;}
@@ -478,4 +483,23 @@ void Bridge::fetchPublishedCover(){
   QScopedValueRollback<bool> original(m_fromPublishedCover,true);applyMedia({{"artwork",QString::fromLatin1(image.toBase64())}});
   if(setting("cover/mode","off").toString()=="auto"&&qMax(m_phonePixels.width(),m_phonePixels.height())>=setting("cover/resolution",1200).toInt())m_coverService->cancel();
  });
+}
+
+void Bridge::refreshCacheUsage(){
+ if(m_cacheScanning){m_cacheRescan=true;return;}m_cacheScanning=true;const auto root=cachePath();
+ auto watcher=new QFutureWatcher<QVariantMap>(this);
+ connect(watcher,&QFutureWatcher<QVariantMap>::finished,this,[this,watcher,root]{const auto result=watcher->result();watcher->deleteLater();m_cacheScanning=false;if(root==cachePath()){m_cacheUsage=result;emit cacheUsageChanged();}if(m_cacheRescan){m_cacheRescan=false;m_cacheScan.start();}});
+ watcher->setFuture(QtConcurrent::run([root]{qint64 covers=0,lyrics=0;QDirIterator items(root,QDir::Files,QDirIterator::Subdirectories);while(items.hasNext()){items.next();const auto file=items.fileInfo();if(file.isSymLink())continue;if(file.absoluteFilePath().startsWith(root+"/covers/"))covers+=file.size();else if((file.fileName().endsWith(".lrc")||file.fileName().endsWith(".lyrics.json"))&&!file.fileName().endsWith(".manual.lrc"))lyrics+=file.size();}return QVariantMap{{"coverBytes",covers},{"lyricBytes",lyrics}};}));
+}
+void Bridge::setCacheDirectory(QUrl url){
+ const auto base=url.isEmpty()?QString():QDir::cleanPath(url.toLocalFile());
+ if(!url.isEmpty()&&(base.isEmpty()||!QFileInfo(base).isDir()||!QFileInfo(base).isWritable())){emit notification(tr("Cache folder is not writable"));return;}
+ if(base==m_settings.value("preferences/cache/directory").toString())return;
+ const auto oldRoot=cachePath();const auto newRoot=base.isEmpty()?QStandardPaths::writableLocation(QStandardPaths::CacheLocation):QDir(base).absoluteFilePath("DroidMediaLink-cache");
+ for(const auto &path:QStringList{newRoot,newRoot+"/covers"}){const QFileInfo info(path);if(info.isSymLink()||info.isJunction()||(info.exists()&&!info.isDir())){emit notification(tr("Cache folder is not writable"));return;}}
+ if(!QDir().mkpath(newRoot)){emit notification(tr("Cache folder is not writable"));return;}
+ // Imported/manual lyrics are user data, and follow the cache selection by copy.
+ for(const auto &file:QDir(oldRoot).entryInfoList({"*.manual.lrc","*.manual.json"},QDir::Files|QDir::NoSymLinks)){const auto destination=newRoot+"/"+file.fileName();if(!QFileInfo::exists(destination)&&!QFile::copy(file.absoluteFilePath(),destination)){emit notification(tr("Cache folder is not writable"));return;}}
+ cancelLyricRequest();m_coverRetry.stop();m_coverService->cancel();m_coverTestService->cancel();m_settings.setValue("preferences/cache/directory",base);
+ m_coverService->setDirectory(cachePath()+"/covers");m_coverRequestKey.clear();m_pendingCover={};m_cacheScan.start();emit settingsChanged();emit notification(tr("Cache folder changed; existing files are kept"));
 }

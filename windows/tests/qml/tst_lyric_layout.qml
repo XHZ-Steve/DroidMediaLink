@@ -40,7 +40,13 @@ Item {
             const y=timeline.contentY;controller.currentLine=1;controller.lyricPosition=6000;wait(30);compare(timeline.contentY,y)
             lyricView.recover();verify(!timeline.userScrolling)
         }
-        function test_long_line_scroll_is_linear_and_seekable(){
+        function test_before_first_timestamp_positions_without_highlighting(){
+            controller.currentLine=-1;controller.lyricPosition=0;wait(60)
+            const timeline=findChild(lyricView,"lyricTimeline")
+            tryVerify(function(){return timeline.positioned})
+            const row=timeline.itemAtIndex(0);verify(row!==null);verify(!row.selected);compare(lyricView.line,0)
+        }
+        function test_long_line_scroll_eases_and_is_seekable(){
             const words=[];for(let i=0;i<50;i++)words.push({text:"Longword ",time:1000+i*200,end:1200+i*200})
             controller.lyrics=[{time:1000,end:11000,text:words.map(function(w){return w.text}).join(""),words:words}]
             lyricView.configuration=({fontSize:32,activeScale:1.1,longLine:"scroll",alignment:"left",maxWidth:300,fadeTop:0,fadeBottom:0})
@@ -49,10 +55,10 @@ Item {
             verify(row.scrolling);verify(row.scrollDistance>0);compare(row.scrollViewportWidth,300)
             const flow=findChild(row,"lyricWords")
             flow.children.filter(function(item){return item.objectName==="lyricGlyph"}).forEach(function(glyph){compare(glyph.y,0)})
-            controller.lyricPosition=3500;wait(20);verify(Math.abs(row.scrollOffset-row.scrollDistance*.25)<.1)
-            controller.lyricPosition=8500;wait(20);verify(Math.abs(row.scrollOffset-row.scrollDistance*.75)<.1)
+            controller.lyricPosition=3500;wait(20);verify(Math.abs(row.scrollOffset-row.scrollDistance*.15625)<.1)
+            controller.lyricPosition=8500;wait(20);verify(Math.abs(row.scrollOffset-row.scrollDistance*.84375)<.1)
             const paused=row.scrollOffset;wait(60);compare(row.scrollOffset,paused)
-            controller.lyricPosition=2000;wait(20);verify(Math.abs(row.scrollOffset-row.scrollDistance*.1)<.1)
+            controller.lyricPosition=2000;wait(20);verify(Math.abs(row.scrollOffset-row.scrollDistance*.028)<.1)
         }
     }
 }

@@ -296,6 +296,22 @@
 <message><source>Unable to save the update</source><translation>无法保存更新包</translation></message>
 <message><source>Unable to start the installer</source><translation>无法启动安装程序</translation></message>
 <message><source>Update download or verification failed</source><translation>更新下载或校验失败</translation></message>
+<message>
+            <source>Cache folder is not writable</source>
+            <translation>缓存目录不可写</translation>
+        </message>
+<message>
+            <source>Cache folder changed; existing files are kept</source>
+            <translation>缓存目录已更改，原有文件已保留</translation>
+        </message>
+<message>
+            <source>Cover cache cleared</source>
+            <translation>封面缓存已清除</translation>
+        </message>
+<message>
+            <source>Lyrics cache cleared</source>
+            <translation>歌词缓存已清除</translation>
+        </message>
 </context>
 <context>
     <name>CoverArtwork</name>
@@ -360,6 +376,14 @@
         <source>Close</source>
         <translation type="vanished">关闭</translation>
     </message>
+<message>
+            <source>Lyrics earlier</source>
+            <translation>歌词提前</translation>
+        </message>
+<message>
+            <source>Lyrics later</source>
+            <translation>歌词延后</translation>
+        </message>
 </context>
 <context>
     <name>LyricProviders</name>
@@ -2119,6 +2143,18 @@
 <message><source>Manage devices</source><translation>管理设备</translation></message>
 <message><source>Toggle desktop lyrics</source><translation>显示/隐藏桌面歌词</translation></message>
 <message><source>Toggle floating player</source><translation>显示/隐藏悬浮播放器</translation></message>
+<message>
+            <source>Cache folder</source>
+            <translation>缓存位置</translation>
+        </message>
+<message>
+            <source>Clear cache</source>
+            <translation>清除缓存</translation>
+        </message>
+<message>
+            <source>Original–translation offset</source>
+            <translation>原文与译文间距偏移</translation>
+        </message>
 </context>
 <context>
     <name>SettingsPage</name>
@@ -2735,6 +2771,18 @@
     <message><source>Experimental</source><translation>实验性</translation></message>
     <message><source>No matching cover</source><translation>未匹配到封面</translation></message>
 <message><source>Optical</source><translation>通透光学</translation></message>
+<message>
+            <source>Cache folder</source>
+            <translation>缓存位置</translation>
+        </message>
+<message>
+            <source>Default folder</source>
+            <translation>默认位置</translation>
+        </message>
+<message>
+            <source>%1 MB</source>
+            <translation>%1 MB</translation>
+        </message>
 </context>
 <context><name>CoverArt</name>
     <message><source>Untrusted cover URL</source><translation>不受信任的封面地址</translation></message>

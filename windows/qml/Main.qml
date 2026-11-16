@@ -153,12 +153,15 @@ ApplicationWindow {
     AppDialog {
         id:updateDownload;title:backend.updateProgress<0?qsTr("Checking for updates"):qsTr("Downloading update")
         anchors.centerIn:Overlay.overlay;width:Math.min(400,root.width-32);standardButtons:Dialog.Cancel;closePolicy:Popup.NoAutoClose
-        contentItem:ProgressBar{from:0;to:1;value:backend.updateProgress;indeterminate:backend.updateProgress<0}
+        contentItem:ColumnLayout{spacing:12
+            BusyIndicator{Layout.alignment:Qt.AlignHCenter;implicitWidth:32;implicitHeight:32;running:updateDownload.visible&&backend.updateProgress<0;visible:backend.updateProgress<0}
+            ProgressBar{Layout.fillWidth:true;visible:backend.updateProgress>=0;from:0;to:1;value:Math.max(0,backend.updateProgress)}
+        }
         onRejected:backend.cancelUpdate()
     }
     component AmbientScene: AmbientField {
         primary:backend.ambientPrimary;secondary:backend.ambientSecondary;accent:backend.ambientAccent;deep:backend.ambientDeep;configuration:root.material("background")
-        light:root.light;motion:root.motion;transitionDuration:design.atmosphere;active:Window.window&&Window.window.visible&&Window.window.visibility!==Window.Minimized
+        light:root.light;motion:root.motion;transitionDuration:design.atmosphere;active:Window.window&&Window.window.visible&&Window.window.active&&Window.window.visibility!==Window.Minimized
     }
     component Caption: Label{textFormat:Text.PlainText;color:root.muted;font.pixelSize:design.caption}
     component Transport: RowLayout {
@@ -295,13 +298,13 @@ ApplicationWindow {
         function persistPosition(){if(!positionReady)return;floatingPositionSave.stop();const px=x,py=y;root.save("floatX",px);root.save("floatY",py)}
         onXChanged:if(positionReady&&visible)floatingPositionSave.restart()
         onYChanged:if(positionReady&&visible)floatingPositionSave.restart()
-        Timer{id:floatingPositionSave;interval:350;onTriggered:if(!floatingDrag.active)floating.persistPosition();else restart()}
+        Timer{id:floatingPositionSave;interval:350;onTriggered:if(!floatingDrag.pressed)floating.persistPosition();else restart()}
         Connections{target:mainChrome;function onAboutToQuit(){if(floatingPositionSave.running)floating.persistPosition()}}
         AmbientScene{id:floatingBackdrop;anchors.fill:parent;visible:false}
         GlassMaterial{opacity:root.highContrast?1:.72;configuration:root.material("floating");motion:root.motion;anchors.fill:parent;sourceItem:floatingBackdrop;glassEnabled:root.liquidStyle;cornerRadius:design.floatingRadius;active:floating.visible;dark:!root.light;backdropColor:root.bg;tintColor:design.elevated;tintStrength:root.light?.10+root.glass*.44:.04+root.glass*.25;fallbackColor:design.elevated}
         Item{anchors.left:parent.left;anchors.right:parent.right;anchors.top:parent.top;anchors.margins:6;anchors.rightMargin:44;height:64;z:1
-            HoverHandler{cursorShape:floatingDrag.active?Qt.ClosedHandCursor:Qt.OpenHandCursor}
-            DragHandler{id:floatingDrag;target:null;acceptedButtons:Qt.LeftButton;onActiveChanged:if(active)floating.startSystemMove();else if(floating.positionReady)floatingPositionSave.restart()}
+            HoverHandler{cursorShape:floatingDrag.pressed?Qt.ClosedHandCursor:Qt.OpenHandCursor}
+            MouseArea{id:floatingDrag;anchors.fill:parent;acceptedButtons:Qt.LeftButton;onPressed:Qt.callLater(function(){floating.startSystemMove()})}
         }
         ColumnLayout { anchors.fill:parent; anchors.margins:20; Label { textFormat:Text.PlainText; text:backend.title||qsTr("No media"); color:fg; font.pixelSize:20; elide:Text.ElideRight; Layout.fillWidth:true;Layout.rightMargin:24 } Caption { text:backend.artist;Layout.fillWidth:true;elide:Text.ElideRight } Transport { backdrop:floatingBackdrop;Layout.alignment:Qt.AlignHCenter } }
         Action{z:2;anchors.top:parent.top;anchors.right:parent.right;anchors.margins:8;implicitWidth:28;implicitHeight:28;iconName:"x";text:qsTr("Close");onClicked:floating.hide()}
@@ -314,7 +317,7 @@ ApplicationWindow {
                 x:atLeft?0:atRight?floating.width-6:6;y:atTop?0:atBottom?floating.height-6:6
                 width:atLeft||atRight?6:floating.width-12;height:atTop||atBottom?6:floating.height-12
                 cursorShape:(atLeft||atRight)&&(atTop||atBottom)?(atLeft===atTop?Qt.SizeFDiagCursor:Qt.SizeBDiagCursor):atLeft||atRight?Qt.SizeHorCursor:Qt.SizeVerCursor
-                onPressed:floating.startSystemResize(modelData)
+                onPressed:Qt.callLater(function(){floating.startSystemResize(modelData)})
             }
         }
     }
@@ -396,12 +399,12 @@ ApplicationWindow {
         exit:Transition{NumberAnimation{property:"opacity";from:1;to:0;duration:root.motion?140:0}}
         background:GlassMaterial{sourceItem:ambient;configuration:root.material("popup");glassEnabled:root.liquidStyle;active:volumePopup.visible;dark:!root.light;backdropColor:root.bg;fallbackColor:design.elevated;motion:root.motion}
         contentItem:ColumnLayout{spacing:8
-            Caption{Layout.alignment:Qt.AlignHCenter;text:backend.volumeKnown?Math.round((volumeSlider.pressed?volumeSlider.value:backend.volume)*100)+"%":"—"}
+            Caption{Layout.alignment:Qt.AlignHCenter;text:backend.volumeKnown?Math.round(volumeSlider.value*100)+"%":"—"}
             Slider{
                 id:volumeSlider;Layout.fillHeight:true;Layout.alignment:Qt.AlignHCenter;implicitWidth:36;orientation:Qt.Vertical
-                from:0;to:1;value:backend.volume;enabled:root.supports("volume")&&backend.volumeKnown;wheelEnabled:true;Accessible.name:qsTr("Phone volume")
+                from:0;to:1;value:backend.volumePending?backend.requestedVolume:backend.volume;enabled:root.supports("volume")&&backend.volumeKnown;wheelEnabled:true;Accessible.name:qsTr("Phone volume")
                 onMoved:{volumePopup.requestedVolume=value;if(!volumeSend.running)volumeSend.start()}
-                onPressedChanged:if(pressed)volumePopup.requestedVolume=value;else{volumeSend.restart();value=Qt.binding(function(){return backend.volume});volumeDismiss.restart()}
+                onPressedChanged:if(pressed)volumePopup.requestedVolume=value;else{volumeSend.stop();if(backend.volumeKnown)backend.command("volume",volumePopup.requestedVolume);value=Qt.binding(function(){return backend.volumePending?backend.requestedVolume:backend.volume});volumeDismiss.restart()}
                 background:Rectangle{x:volumeSlider.leftPadding+(volumeSlider.availableWidth-width)/2;y:volumeSlider.topPadding;width:4;implicitHeight:112;height:volumeSlider.availableHeight;radius:2;color:root.light?"#24303b60":"#30e0e5ff"
                     Rectangle{x:0;y:volumeSlider.visualPosition*parent.height;width:4;height:Math.max(0,parent.height-y);radius:2;color:root.accent}
                 }
@@ -409,9 +412,9 @@ ApplicationWindow {
             }
 
         }
-        Timer{id:volumeSend;interval:80;onTriggered:if(backend.volumeKnown)backend.command("volume",volumePopup.requestedVolume)}
+        Timer{id:volumeSend;interval:80;onTriggered:{if(backend.volumeKnown)backend.command("volume",volumePopup.requestedVolume);if(!volumeSlider.pressed)volumeSlider.value=Qt.binding(function(){return backend.volumePending?backend.requestedVolume:backend.volume})}}
         HoverHandler{id:volumeHover;onHoveredChanged:if(hovered)volumeDismiss.stop();else volumeDismiss.restart()}
-        Connections{target:backend;function onCommandFinished(requestId,success,error){if(!volumeSlider.pressed)volumeSlider.value=Qt.binding(function(){return backend.volume})}}
+
         Shortcut{sequence:"Escape";enabled:volumePopup.visible;onActivated:volumePopup.close()}
     }
     Timer{id:volumeDismiss;interval:350;onTriggered:if(!volumePopup.pinned&&!volumeButton.hovered&&!volumeHover.hovered&&!volumeSlider.pressed)volumePopup.close()}

@@ -31,6 +31,7 @@ void Bridge::resetAppearance(QString scope){if(!QStringList{"global","background
 void Bridge::resetSettingsGroup(int group,int section){for(const auto &item:SettingsSchema::descriptors()){auto row=item.toMap();if(row["group"].toInt()!=group||row["section"].toInt()!=section)continue;const auto key=row["key"].toString();if(row["type"]=="action"||row["type"]=="readonly")continue;setSetting(key,row["defaultValue"]);}emit settingsChanged();}
 void Bridge::exportDiagnostics(QUrl url){QSaveFile file(url.toLocalFile());if(!file.open(QIODevice::WriteOnly))return;const QJsonObject data{{"applicationVersion",QCoreApplication::applicationVersion()},{"qtVersion",qVersion()},{"connected",online()},{"player",appName()},{"lyricsLoaded",m_lyrics.size()},{"lyricSource",lyricSource()},{"smtcStatus",nativeStatus()},{"appearancePreset",m_settings.value("appearance/preset","balanced").toString()}};file.write(QJsonDocument(data).toJson());file.commit();}
 QVariant Bridge::setting(QString key,QVariant fallback)const{
+ if(key=="cache/directory")return m_settings.value("preferences/cache/directory",QString()).toString();
  if(key=="info/player")return appName().isEmpty()?tr("No media"):appName();
  if(key=="info/volume")return volumeKnown()?QString::number(qRound(volume()*100))+"%":tr("Unavailable");
  auto value=m_settings.value("preferences/"+key,fallback);if(!value.isValid())return value;
@@ -41,6 +42,7 @@ QVariant Bridge::setting(QString key,QVariant fallback)const{
  return value;
 }
 void Bridge::setSetting(QString key,QVariant value){
+ if(key=="cache/directory"){setCacheDirectory(value.toString().isEmpty()?QUrl():QUrl::fromLocalFile(value.toString()));return;}
  if(value.metaType()==QMetaType::fromType<QJSValue>())value=value.value<QJSValue>().toVariant();QVariant normalized;
  if(SettingsSchema::normalize(key,value,&normalized))value=normalized;
  else if(key=="glass"){bool ok=false;double number=value.toDouble(&ok);if(!ok||!std::isfinite(number))return;value=qBound(0.,number,.5);}
@@ -58,7 +60,7 @@ void Bridge::setSetting(QString key,QVariant value){
  if(key.startsWith("cover/")){m_coverRequestKey.clear();enhanceCover();}
  if(key=="media/smtc")updateNative();if(key.startsWith("lyrics/providers/"))emit lyricProvidersChanged();emit settingsChanged();
 }
-void Bridge::resetSettings(){m_settings.remove("preferences");m_settings.remove("appearance");for(auto defaults=factoryDefaults();auto key:defaults.keys())m_settings.setValue(key,defaults.value(key).toVariant());m_settings.setValue("preferences/lyrics/autoMatchMigration",true);setSetting("general/autostart",false);cancelLyricRequest();m_lyricKey.clear();fetchLyrics();emit settingsChanged();}
+void Bridge::resetSettings(){setCacheDirectory(QUrl());const auto cacheDirectory=m_settings.value("preferences/cache/directory");m_settings.remove("preferences");if(!cacheDirectory.toString().isEmpty())m_settings.setValue("preferences/cache/directory",cacheDirectory);m_settings.remove("appearance");for(auto defaults=factoryDefaults();auto key:defaults.keys())m_settings.setValue(key,defaults.value(key).toVariant());m_settings.setValue("preferences/lyrics/autoMatchMigration",true);setSetting("general/autostart",false);cancelLyricRequest();m_lyricKey.clear();fetchLyrics();emit settingsChanged();}
 namespace {
 QString lyricPresetKey(const QString &name){return "lyricPresets/custom/"+QString::fromLatin1(name.toUtf8().toBase64(QByteArray::Base64UrlEncoding|QByteArray::OmitTrailingEquals));}
 bool validLyricPresetName(const QString &name){return !name.isEmpty()&&name==name.trimmed()&&name.size()<=64&&std::none_of(name.begin(),name.end(),[](QChar ch){return ch.unicode()<32;});}
@@ -97,3 +99,7 @@ void Bridge::resetLyricSettings(QString scope){
  for(const auto &value:SettingsSchema::descriptors()){const auto row=value.toMap();const auto key=row["key"].toString();if(row["lyricStyle"].toBool()&&(scope=="all"||key.startsWith(scope=="main"?"lyrics/":"desktopLyrics/")))m_settings.remove("preferences/"+key);}
  emit settingsChanged();
 }
+
+QVariantMap Bridge::lyricStyleConfig(QString prefix)const{QVariantMap result;if(prefix!="lyrics"&&prefix!="desktopLyrics")return result;for(const auto &item:SettingsSchema::descriptors()){const auto row=item.toMap();const auto key=row.value("key").toString();if(row.value("lyricStyle").toBool()&&key.startsWith(prefix+"/"))result[key.mid(prefix.size()+1)]=setting(key,row.value("defaultValue"));}return result;}
+void Bridge::resetSetting(QString key){const auto row=SettingsSchema::descriptor(key);if(row.isEmpty()||row["type"]=="readonly"||row["type"]=="action")return;const auto defaults=factoryDefaults();setSetting(key,defaults.contains("preferences/"+key)?defaults.value("preferences/"+key).toVariant():row["defaultValue"]);}
+void Bridge::resetAppearanceValue(QString scope,QString key){if(!QStringList{"global","background","dock","popup","floating","desktop"}.contains(scope)||!AppearanceConfig::defaultValue(key).isValid())return;const auto full="appearance/"+scope+"/"+key;const auto defaults=factoryDefaults();if(scope=="global"&&defaults.contains(full))m_settings.setValue(full,defaults.value(full).toVariant());else m_settings.remove(full);emit settingsChanged();}

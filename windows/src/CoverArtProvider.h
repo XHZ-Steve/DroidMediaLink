@@ -47,6 +47,7 @@ class CoverArtService:public QObject {
  int minimumPixels=0;
 public:explicit CoverArtService(QString,QObject *parent=nullptr,QNetworkAccessManager *transport=nullptr);
  ~CoverArtService()override{cancel();}
+ void setDirectory(QString path);
  void cancel();void clear();void setBudget(int mb);qint64 bytes()const;
  void setPriority(QStringList order);
  std::function<void(QString,QVariantMap)> progress;

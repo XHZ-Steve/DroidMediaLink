@@ -9,6 +9,7 @@ import "Icons.js" as Icons
 // values stay in the controller, and every editor commits through its public API.
 Item {
     id: page
+    FolderDialog{id:cacheFolder;title:qsTr("Cache folder");onAccepted:if(page.controller)page.controller.setCacheDirectory(selectedFolder)}
     property var controller
     property int settingsRevision: 0
     property int initialGroup: 0
@@ -309,7 +310,16 @@ Item {
         Layout.fillWidth:true
         objectName:"setting-"+(appearance?"appearance/":"")+key
         activeFocusOnTab:true
-        function commit(value){if(!page.controller)return;if(appearance)page.controller.setAppearance(scope,key,value);else page.save(key,value)}
+        property var pendingValue
+        property bool hasPending:false
+        function commitNow(value){if(!page.controller)return;if(appearance)page.controller.setAppearance(scope,key,value);else page.save(key,value)}
+        function flush(){if(hasPending){hasPending=false;numericCommit.stop();commitNow(pendingValue)}}
+        function commit(value){if(["real","number","int"].indexOf(kind)>=0){pendingValue=value;hasPending=true;numericCommit.restart()}else commitNow(value)}
+        Timer{id:numericCommit;interval:130;onTriggered:row.flush()}
+        Component.onDestruction:flush()
+        HoverHandler{id:rowHover}
+        function cacheSize(){const info=page.controller&&page.controller.cacheUsage;if(!info)return "";const bytes=info[row.key==="action/clearCoverArtCache"?"coverBytes":"lyricBytes"];return bytes===undefined?"":qsTr("%1 MB").arg((bytes/1048576).toFixed(1))}
+
         Rectangle{anchors.fill:parent;radius:tokens.radius;color:page.highlightedKey===(row.appearance?"appearance/":"")+row.key?tokens.selected:"transparent"}
         RowLayout {
             anchors.fill:parent;anchors.leftMargin:8;anchors.rightMargin:4;spacing:8
@@ -331,7 +341,7 @@ Item {
                     text:Number(row.currentValue).toFixed(row.kind==="int"?0:(row.descriptor.step||1)<.1?2:(row.descriptor.step||1)<1?1:0)
                     horizontalAlignment:Text.AlignRight;inputMethodHints:Qt.ImhFormattedNumbersOnly
                     Accessible.name:row.descriptor.label
-                    onEditingFinished:{const value=Number(text);if(text.trim().length&&isFinite(value)&&value>=numberSlider.from&&value<=numberSlider.to)row.commit(row.kind==="int"?Math.round(value):value);text=Number(row.currentValue).toFixed(row.kind==="int"?0:(row.descriptor.step||1)<.1?2:(row.descriptor.step||1)<1?1:0)}
+                    onEditingFinished:{const value=Number(text);if(text.trim().length&&isFinite(value)&&value>=numberSlider.from&&value<=numberSlider.to){row.commit(row.kind==="int"?Math.round(value):value);return}text=Number(row.currentValue).toFixed(row.kind==="int"?0:(row.descriptor.step||1)<.1?2:(row.descriptor.step||1)<1?1:0)}
                 }
             }
             Choice {
@@ -368,8 +378,20 @@ Item {
                 }
                 onEditingFinished:row.commit(text.trim())
             }
+            Label{visible:row.kind==="action"&&(row.key==="action/clearCoverArtCache"||row.key==="action/clearLyricsCache");text:row.cacheSize();color:tokens.secondaryText;Layout.preferredWidth:72;horizontalAlignment:Text.AlignRight}
+            FlatButton{visible:row.kind==="directory";text:row.currentValue||qsTr("Default folder");Layout.maximumWidth:Math.min(260,page.width*.43);Accessible.name:row.descriptor.label;ToolTip.visible:hovered;ToolTip.text:text;onClicked:cacheFolder.open()}
             FlatButton {visible:row.kind==="action";text:row.descriptor.buttonLabel||qsTr("Open");Accessible.name:row.descriptor.label;onClicked:page.runAction(row.descriptor)}
             Label {visible:row.kind==="readonly";Layout.maximumWidth:Math.min(260,page.width*.45);text:String(row.currentValue||row.descriptor.value||"");textFormat:Text.PlainText;color:tokens.secondaryText;elide:Text.ElideRight;Accessible.name:row.descriptor.label}
+            Item{Layout.preferredWidth:30;Layout.preferredHeight:32
+                FlatButton{id:resetValue;anchors.fill:parent;implicitWidth:30
+                    visible:row.kind!=="action"&&row.kind!=="readonly"
+                    enabled:row.editable
+                    opacity:rowHover.hovered||row.activeFocus||visualFocus?1:0
+                    text:Icons.glyph("rotate-ccw");font.family:lucide.name;font.pixelSize:15
+                    Accessible.name:qsTr("Reset %1").arg(row.descriptor.label);ToolTip.visible:hovered;ToolTip.text:qsTr("Reset %1").arg(row.descriptor.label)
+                    onClicked:{row.hasPending=false;numericCommit.stop();if(row.appearance)page.controller.resetAppearanceValue(row.scope,row.key);else page.controller.resetSetting(row.key)}
+                }
+            }
         }
     }
 

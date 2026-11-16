@@ -9,13 +9,17 @@ Item {
  property string settingsPrefix:compact?"desktopLyrics":"lyrics"
  readonly property bool desktop:settingsPrefix==="desktopLyrics"
  property var configuration:({})
- function option(key,fallback){var revision=settingsRevision;if(configuration&&configuration[key]!==undefined)return configuration[key];return controller&&typeof controller.setting==="function"?controller.setting(settingsPrefix+"/"+key,fallback):fallback}
+ property var sampledOptions:({})
+ function sampleSettings(){if(controller&&typeof controller.lyricStyleConfig==="function"){const next=controller.lyricStyleConfig(settingsPrefix);if(JSON.stringify(next)!==JSON.stringify(sampledOptions))sampledOptions=next}}
+ Timer{id:styleSample;interval:100;onTriggered:view.sampleSettings()}
+ onSettingsRevisionChanged:if(active)styleSample.restart()
+ function option(key,fallback){if(configuration&&configuration[key]!==undefined)return configuration[key];if(sampledOptions[key]!==undefined)return sampledOptions[key];return controller&&typeof controller.setting==="function"?controller.setting(settingsPrefix+"/"+key,fallback):fallback}
  function colorOption(key,fallback){var value=option(key,"auto");return value==="auto"?fallback:value}
  signal seekRequested(real position)
  property color textColor:"#fff8f5"
  property color inactiveColor:"#bdc5d5"
  property string fontFamily:option("fontFamily",type.displayFamily)
- property int fontSize:option("fontSize",desktop?36:28)
+ property real fontSize:option("fontSize",desktop?36:28)
  property int scrollDuration:option("scrollDuration",420)
  property string easingCurve:option("easing","outCubic")
  property real focusPosition:option("focus",desktop?.5:.45)
@@ -46,10 +50,13 @@ Item {
  readonly property real reserveScale:Math.max(1,activeScale,option("inactiveScale",1))
  readonly property int fontWeight:option("fontWeight",desktop?450:500)
  readonly property int activeWeight:option("activeWeight",desktop?500:600)
+ property real translationGap:Math.max(0,desktop?6+option("groupSpacing",10):option("translationSpacing",6))
+ Behavior on translationGap{enabled:view.motion&&view.active;NumberAnimation{duration:180;easing.type:Easing.InOutCubic}}
+ Behavior on fontSize{enabled:view.motion&&view.active;NumberAnimation{duration:180;easing.type:Easing.InOutCubic}}
  readonly property real inkPadding:Math.ceil(Math.max(5,outlineWidth+2,shadow?option("shadowBlur",6)+Math.abs(option("shadowOffset",2)):0,option("glow",false)||option("wordGlow",false)?option("glowRadius",8):0))
  readonly property int rendering:option("rendering","curve")==="native"?Text.NativeRendering:option("rendering","curve")==="qt"?Text.QtRendering:Text.CurveRendering
  readonly property var rows:controller?controller.lyrics:[]
- readonly property int line:controller?controller.currentLine:-1
+ readonly property int line:controller&&rows.length?Math.max(0,controller.currentLine):-1
  readonly property bool untimed:rows.length>0&&rows[0].untimed===true
  readonly property bool active:visible&&Window.window&&Window.window.visible&&Window.window.visibility!==Window.Minimized
  readonly property bool edgeLayer:active&&!compact&&(originalFocus>0||(option("fadeStrength",1)>0&&(option("fadeTop",70)>0||option("fadeBottom",70)>0)))&&GraphicsInfo.api!==GraphicsInfo.Software
@@ -66,10 +73,10 @@ Item {
  function syncClock(){if(controller&&typeof controller.setLyricsVisible==="function")controller.setLyricsVisible(clockSurface,active&&clockEnabled)}
  function recover(){timeline.userScrolling=false;timeline.cancelFlick();timeline.follow()}
  onClockEnabledChanged:syncClock()
- onActiveChanged:{syncClock();if(!active){scrollMotion.stop();timeline.positioned=false}else Qt.callLater(timeline.follow)}
+ onActiveChanged:{if(active)sampleSettings();syncClock();if(!active){scrollMotion.stop();timeline.positioned=false}else Qt.callLater(timeline.follow)}
  onLineChanged:Qt.callLater(timeline.follow)
  onWidthChanged:Qt.callLater(timeline.follow)
- Component.onCompleted:syncClock()
+ Component.onCompleted:{sampleSettings();syncClock()}
  Component.onDestruction:if(controller&&typeof controller.setLyricsVisible==="function")controller.setLyricsVisible(clockSurface,false)
  clip:true
 
@@ -110,7 +117,7 @@ Item {
   required property var modelData
   required property int index
   readonly property var row:modelData
-  readonly property bool selected:index===view.line
+  readonly property bool selected:index===view.line&&(view.untimed||view.controller.currentLine>=0)
   readonly property bool past:index<view.line
   function originalTokens(){
    let prefix="",result=[]
@@ -131,11 +138,11 @@ Item {
    wrappedLineEdges=edges
   }
   function primaryGeometry(){return primary.mapToItem(view,Qt.rect(0,0,primary.width,primary.height))}
-  readonly property real primaryCenterOffset:primary.height/2
+  readonly property real primaryCenterOffset:view.desktop?(translatedLine.visible?translatedLine.y+translatedLine.height:originalSlot.height)/2:primary.height/2
   // Delegate measurement can finish after the initial follow request. Re-anchor
   // only on layout changes, never on each media-clock tick.
-  onYChanged:if(selected)Qt.callLater(timeline.follow)
-  onHeightChanged:if(selected)Qt.callLater(timeline.follow)
+  onYChanged:if(index===view.line)Qt.callLater(timeline.follow)
+  onHeightChanged:if(index===view.line)Qt.callLater(timeline.follow)
   readonly property real layoutWidth:Math.max(1,(Math.min(timeline.width,view.option("maxWidth",view.desktop?1800:1000))/view.reserveScale)-view.inkPadding*2-8)
   readonly property font face:Qt.font({family:type.resolvedFamily(rowItem.row.text||"",view.fontFamily),pixelSize:view.fontSize,weight:selected?view.activeWeight:view.fontWeight,letterSpacing:view.option("letterSpacing",0),wordSpacing:!view.desktop&&!rowItem.selected?-view.fontSize*.075:0,contextFontMerging:true,preferTypoLineMetrics:true,hintingPreference:Font.PreferNoHinting})
   readonly property var chunks:view.longLine==="elide"?[{text:row.text||"",time:row.time||0,end:row.end||0}]:row.words&&row.words.length?row.words:view.plainChunks(row)
@@ -151,7 +158,7 @@ Item {
   readonly property real scrollEnd:row.words&&row.words.length?row.words[row.words.length-1].end:row.end||scrollStart
   readonly property real scrollFraction:scrollEnd>scrollStart?Math.max(0,Math.min(1,(view.timelinePosition-scrollStart)/(scrollEnd-scrollStart))):0
   readonly property real scrollDistance:Math.max(0,(primary.width-view.inkPadding*2)*primary.scale-rowItem.scrollViewportWidth)
-  readonly property real scrollOffset:scrolling?scrollDistance*scrollFraction:0
+  readonly property real scrollOffset:scrolling?scrollDistance*(scrollFraction*scrollFraction*(3-2*scrollFraction)):0
   readonly property real sourceWidth:view.longLine==="elide"?Math.min(layoutWidth,naturalWidth):flowWidth
   readonly property color baseColor:selected?view.colorOption("unsungColor",view.inactiveColor):view.untimed?view.textColor:past?view.colorOption("pastColor",view.inactiveColor):view.colorOption("futureColor",view.inactiveColor)
   readonly property real stateOpacity:selected||view.untimed?view.option("activeOpacity",1):view.line<0?.78:Math.min(1,(past?view.option("pastOpacity",view.desktop?.5:.58):view.inactiveOpacity)+view.option("nearbyEmphasis",.12)/Math.max(1,Math.abs(index-view.line)))
@@ -159,7 +166,7 @@ Item {
   readonly property real centerY:y-timeline.contentY+height/2
   readonly property real fade:view.compact||view.edgeLayer?1:Math.pow(Math.max(0,Math.min(1,view.topFade>0?centerY/view.topFade:1,view.bottomFade>0?(timeline.height-centerY)/view.bottomFade:1)),view.option("fadeStrength",1))
   width:timeline.width
-  height:body.height+view.option("groupSpacing",10)
+  height:body.height+(view.desktop?0:view.option("groupSpacing",10))
   opacity:(view.compact&&(index<view.line||index>=view.line+view.compactLines)?0:stateOpacity)*fade*(selected?1:1-view.originalFocus)
   Behavior on opacity {enabled:view.active&&view.motion;NumberAnimation{duration:view.option("highlightDuration",180)}}
   Column {
@@ -167,6 +174,7 @@ Item {
    x:view.flushAlignment?(rowItem.width-width)*view.alignmentPosition+view.inkPadding*primary.scale*(2*view.alignmentPosition-1):view.alignment==="center"?(rowItem.width-width)/2:view.alignment==="right"?rowItem.width-width:4
    spacing:0
    Item {
+    id:originalSlot
     x:rowItem.scrolling?(rowItem.width-rowItem.scrollViewportWidth)*view.alignmentPosition-body.x:0;width:rowItem.scrolling?rowItem.scrollViewportWidth:parent.width;height:primary.height*view.reserveScale*rowItem.shrink;clip:rowItem.scrolling
     layer.enabled:view.active&&rowItem.scrolling&&rowItem.selected&&GraphicsInfo.api!==GraphicsInfo.Software
     layer.smooth:true
@@ -206,8 +214,9 @@ Item {
     }
    }
    Text {
+    id:translatedLine
     visible:view.showTranslation&&(rowItem.row.translation||"").length>0
-    width:view.flushAlignment?Math.min(implicitWidth,parent.width):parent.width;topPadding:view.option("translationSpacing",6)
+    width:view.flushAlignment?Math.min(implicitWidth,parent.width):parent.width;topPadding:view.translationGap
     x:view.flushAlignment?(rowItem.width-width)*(view.option("translationAlignment","inherit")==="inherit"?view.alignmentPosition:horizontalAlignment===Text.AlignRight?1:horizontalAlignment===Text.AlignHCenter?.5:0)-body.x:horizontalAlignment===Text.AlignLeft&&view.alignment==="left"?view.inkPadding*primary.scale:horizontalAlignment===Text.AlignRight&&view.alignment==="right"?-view.inkPadding*primary.scale:0
     text:rowItem.row.translation||"";textFormat:Text.PlainText;wrapMode:Text.Wrap
     horizontalAlignment:view.align(view.option("translationAlignment","inherit")==="inherit"?view.alignment:view.option("translationAlignment","inherit"))

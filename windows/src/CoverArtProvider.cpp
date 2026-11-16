@@ -76,6 +76,7 @@ void CoverArtService::setPriority(QStringList order){QStringList checked;for(aut
 qint64 CoverArtService::bytes()const{qint64 n=0;for(auto file:QDir(directory).entryInfoList(QDir::Files))n+=file.size();return n;}
 void CoverArtService::trim(){auto files=QDir(directory).entryInfoList(QDir::Files,QDir::Time|QDir::Reversed);auto total=bytes();for(auto file:files){if(total<=budget)break;if(file.absoluteFilePath()!=activePath&&file.absoluteFilePath()!=activeThumbnailPath&&QFile::remove(file.absoluteFilePath()))total-=file.size();}}
 void CoverArtService::setBudget(int mb){budget=qBound(32,mb,2048)*1024LL*1024;trim();}
+void CoverArtService::setDirectory(QString path){cancel();activePath.clear();activeThumbnailPath.clear();directory=std::move(path);QDir().mkpath(directory);failures.clear();}
 void CoverArtService::clear(){cancel();activePath.clear();activeThumbnailPath.clear();for(auto f:QDir(directory).entryInfoList(QDir::Files))QFile::remove(f.absoluteFilePath());failures.clear();}
 void CoverArtService::decode(QByteArray data,const QString &key,QString release,int resolution,bool cached,std::function<void(CoverArtResult)> done){
  const auto token=generation;auto watcher=new QFutureWatcher<CoverArtResult>(this);const auto root=directory;const auto guard=epoch;

@@ -41,9 +41,10 @@ inline QVariantList descriptors(){
  S("cover/providers/netease/enabled","NetEase covers (experimental)",2,0,"bool",true);
  S("cover/providers/qq/enabled","QQ Music covers (experimental)",2,0,"bool",true);
  S("cover/providers/musicbrainz/enabled","MusicBrainz / CAA covers",2,0,"bool",true);
+ S("cache/directory","Cache folder",5,1,"directory","");
  S("cover/cacheMB","Cover cache limit (MB)",5,1,"int",256,32,2048,32);
  action("refreshCoverArt","Refresh high-resolution cover",2,0);{auto row=out.takeLast().toMap();row["buttonLabel"]=QCoreApplication::translate("Settings","Refresh");out<<row;}
- action("clearCoverArtCache","Clear cover cache",5,1);{auto row=out.takeLast().toMap();row["buttonLabel"]=QCoreApplication::translate("Settings","Clear");out<<row;}
+ action("clearCoverArtCache","Clear cover cache",5,1);{auto row=out.takeLast().toMap();row["buttonLabel"]=QCoreApplication::translate("Settings","Clear cache");out<<row;}
  S("media/smtc","System media controls",2,2,"bool",true);
  S("info/volume","Phone volume",2,3,"readonly","");
  S("lyrics/online","Online lyrics",3,0,"bool",true);
@@ -98,7 +99,7 @@ inline QVariantList descriptors(){
  S("appearance/style","Software style",4,2,"enum","liquid",0,1,1,options({"standard","liquid"}));
  S("motion","Animations",4,3,"bool",true);
  S("info/renderer","Renderer",5,0,"readonly","Qt Quick / QWindowKit");
- action("resetSettings","Restore defaults",5,1);action("clearLyricsCache","Clear lyrics cache",5,1);action("exportSettings","Export settings",5,1);action("importSettings","Import settings",5,1);
+ action("resetSettings","Restore defaults",5,1);action("clearLyricsCache","Clear lyrics cache",5,1);{auto row=out.takeLast().toMap();row["buttonLabel"]=QCoreApplication::translate("Settings","Clear cache");out<<row;}action("exportSettings","Export settings",5,1);action("importSettings","Import settings",5,1);
  action("checkUpdates","Check updates",5,2);action("exportDiagnostics","Export diagnostics",5,3);
  out+=LyricStyleSettings::descriptors(fonts);
  for(auto &value:out){auto row=value.toMap();if(row["key"]=="lyrics/alignment"){row["hidden"]=true;value=row;}}
@@ -118,6 +119,7 @@ inline bool normalize(const QString &key,const QVariant &input,QVariant *output)
  if(type=="bool"){if(input.metaType().id()==QMetaType::Bool)result=input.toBool();else if(input.toString()=="true"||input.toString()=="false")result=input.toString()=="true";else return false;}
  else if(type=="int"||type=="number"){bool ok=false;double number=input.toDouble(&ok);if(!ok||!std::isfinite(number))return false;number=qBound(row["min"].toDouble(),number,row["max"].toDouble());result=type=="int"?QVariant(qRound(number)):QVariant(number);}
  else if(type=="color"){if(input.toString()=="auto"&&row.value("defaultValue").toString()=="auto"){if(output)*output="auto";return true;}QColor color(input.toString());if(!color.isValid())return false;result=color.name(QColor::HexArgb);}
+ else if(type=="directory"){if(input.toString().size()>4096)return false;result=input.toString();}
  else if(type=="shortcut"){auto keys=QKeySequence::fromString(input.toString(),QKeySequence::PortableText);if(keys.isEmpty()||keys.count()>2)return false;result=keys.toString(QKeySequence::PortableText);}
  else if(type=="coverOrder"){auto ids=input.toString().split(',',Qt::SkipEmptyParts);if(ids.size()!=3||QSet<QString>(ids.begin(),ids.end())!=QSet<QString>{"netease","qq","musicbrainz"})return false;result=ids.join(',');}
  else if(type=="providerOrder"){auto ids=input.toString().split(',',Qt::SkipEmptyParts);if(ids.size()==4&&QSet<QString>(ids.begin(),ids.end())==QSet<QString>{"netease","qq","kugou","lrclib"})ids.prepend("phone");if(ids.size()!=5||QSet<QString>(ids.begin(),ids.end())!=QSet<QString>{"phone","netease","qq","kugou","lrclib"})return false;result=ids.join(',');}
