@@ -72,7 +72,7 @@ int main(int argc,char **argv){
  const auto deviceAt=app.arguments().indexOf("--device");if(deviceAt>=0&&deviceAt+1<app.arguments().size())sceneBackend=app.arguments()[deviceAt+1];
  if(sceneBackend!=QStringLiteral("software"))QQuickWindow::setTextRenderType(QQuickWindow::CurveTextRendering);
  if((sceneBackend.isEmpty()||sceneBackend==QStringLiteral("rhi"))&&(graphicsApi==QSGRendererInterface::Direct3D11||graphicsApi==QSGRendererInterface::Direct3D12)&&!qEnvironmentVariableIsSet("QT_QPA_DISABLE_REDIRECTION_SURFACE"))qputenv("QT_QPA_DISABLE_REDIRECTION_SURFACE","1");
- app.setFont(QFont("Microsoft YaHei UI"));app.setOrganizationName("DroidMediaLink");app.setApplicationName("DroidMediaLink");app.setApplicationVersion("1.1.0");app.setQuitOnLastWindowClosed(false);QQuickStyle::setStyle("Basic");
+ app.setFont(QFont("Microsoft YaHei UI"));app.setOrganizationName("DroidMediaLink");app.setApplicationName("DroidMediaLink");app.setApplicationVersion(QStringLiteral(DML_APP_VERSION));app.setQuitOnLastWindowClosed(false);QQuickStyle::setStyle("Basic");
  QString instanceName="DroidMediaLink.primary";
  const int profileIndex=app.arguments().indexOf("--test-profile");
  if(profileIndex>=0&&profileIndex+1<app.arguments().size()){

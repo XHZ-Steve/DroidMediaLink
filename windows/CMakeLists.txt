@@ -21,6 +21,7 @@ set(QWINDOWKIT_INSTALL OFF CACHE BOOL "" FORCE)
 set(QWINDOWKIT_ENABLE_WINDOWS_SYSTEM_BORDERS ON CACHE BOOL "" FORCE)
 add_subdirectory(vendor/qwindowkit EXCLUDE_FROM_ALL)
 qt_add_executable(DroidMediaLink WIN32 src/main.cpp src/Bridge.cpp src/CoverArtProvider.cpp src/Bridge.h src/LyricProviders.cpp src/TrayPerformance.cpp src/TrayPerformance.h)
+set_property(SOURCE src/main.cpp APPEND PROPERTY COMPILE_DEFINITIONS DML_APP_VERSION="${PROJECT_VERSION}")
 qt_add_qml_module(DroidMediaLink URI DroidMediaLink VERSION 1.0 QML_FILES qml/Main.qml qml/Icons.js qml/Motion.js qml/GlassMaterial.qml qml/GlassDialog.qml qml/GlassHint.qml qml/DesignTokens.qml qml/AmbientField.qml qml/CoverArtwork.qml qml/CapsuleProgress.qml qml/SettingsPage.qml qml/LyricView.qml qml/DesktopLyricsWindow.qml qml/NowPlayingCanvas.qml qml/TypographyTokens.qml qml/LyricInk.qml SOURCES src/LyricTimeline.h src/NativeWindowController.h src/NativeWindowController.cpp)
 target_include_directories(DroidMediaLink PRIVATE src)
 target_link_libraries(DroidMediaLink PRIVATE QWKQuick Qt6::Concurrent Qt6::Widgets Qt6::Quick Qt6::QuickControls2 Qt6::QuickDialogs2 Qt6::Network Qt6::WebSockets crypt32 dwmapi psapi)
@@ -64,7 +65,7 @@ target_link_libraries(glass_smoke PRIVATE Qt6::Quick)
 dml_add_glass_resources(glass_smoke)
 set_source_files_properties(tests/GlassSmoke.qml PROPERTIES QT_RESOURCE_ALIAS "qml/GlassSmoke.qml")
 qt_add_resources(glass_smoke "glass_smoke_qml" PREFIX "/qt/qml/DroidMediaLink" FILES
- tests/GlassSmoke.qml qml/GlassMaterial.qml)
+ tests/GlassSmoke.qml qml/GlassMaterial.qml qml/Motion.js)
 
 qt_add_shaders(DroidMediaLink "ambient_shaders" PRECOMPILE
  PREFIX "/qt/qml/DroidMediaLink/shaders" BASE "${CMAKE_CURRENT_SOURCE_DIR}/shaders"
