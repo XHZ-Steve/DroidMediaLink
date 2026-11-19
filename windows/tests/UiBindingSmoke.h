@@ -9,6 +9,8 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QDebug>
+#include <cmath>
 #include <memory>
 
 inline void startUiBindingSmoke(QQuickWindow *window,Bridge &bridge,const QString &path,QCoreApplication &app){
@@ -26,6 +28,47 @@ inline void startUiBindingSmoke(QQuickWindow *window,Bridge &bridge,const QStrin
   const auto original=bridge.setting("glass",.16);bridge.setSetting("glass",.3);passed=passed&&qAbs(window->property("glass").toDouble()-.3)<.001;bridge.setSetting("glass",original);
   checks["glassRoot"]=window->property("glass").toDouble();QFile report(path);if(report.open(QIODevice::WriteOnly))report.write(QJsonDocument(QJsonObject{{"checks",checks},{"nativeQtButtonClicks",3},{"settingsAndRootBindings",passed}}).toJson());
   app.exit(passed?0:12);
+ });
+}
+
+inline void startSettingsDrawerSmoke(QQuickWindow *window,const QString &directory,QCoreApplication &app){
+ const auto gears=visualItemsNamed(window,"settingsGear"),panels=visualItemsNamed(window,"settingsPage");
+ const auto covers=visualItemsNamed(window,"heroArtwork"),titles=visualItemsNamed(window,"trackMetadata");
+ if(gears.isEmpty()||panels.isEmpty()||covers.isEmpty()||titles.isEmpty()){app.exit(14);return;}
+ QDir().mkpath(directory);
+ auto gear=gears.first(),panel=panels.first(),cover=covers.first(),title=titles.first();
+ QTimer::singleShot(1200,window,[=,&app]{
+  struct State{bool falling=false,entering=false,exiting=false,closing=false;QElapsedTimer elapsed;};
+  auto state=std::make_shared<State>();state->elapsed.start();
+  const auto coverTop=cover->mapToScene(QPointF()).y(),titleTop=title->mapToScene(QPointF()).y();
+  if(!QMetaObject::invokeMethod(gear,"click")){app.exit(14);return;}
+  auto timer=new QTimer(window);timer->setTimerType(Qt::PreciseTimer);
+  QObject::connect(timer,&QTimer::timeout,window,[=,&app]{
+   const double progress=window->property("stageProgress").toDouble();
+   const auto page=window->property("page").toInt();
+   if(state->elapsed.elapsed()>6500){qWarning()<<"Settings drawer timed out"<<page<<progress;app.exit(14);return;}
+   const bool panelInMotion=panel->y()>55&&panel->y()<window->height()-12;
+   if(!state->closing){
+    if(progress>.12&&progress<.32){
+     const auto coverFall=cover->mapToScene(QPointF()).y()-coverTop;
+     const auto titleFall=title->mapToScene(QPointF()).y()-titleTop;
+     state->falling|=coverFall>0&&std::abs(coverFall-titleFall)>1&&panel->y()>=window->height();
+    }
+    if(page==2&&panelInMotion)state->entering=true;
+    if(progress==1&&page==2&&!visualItemsNamed(window,"setting-language").isEmpty()){
+     window->grabWindow().save(directory+"/drawer-open.png");
+     state->closing=QMetaObject::invokeMethod(gear,"click");
+    }
+   }else{
+    if(page==0&&panelInMotion&&!state->exiting){state->exiting=true;window->grabWindow().save(directory+"/drawer-exit.png");}
+    if(progress==0&&page==0&&!panel->isVisible()){
+     timer->stop();
+     qInfo()<<"Settings drawer: staggered fall"<<state->falling<<"entry"<<state->entering<<"exit"<<state->exiting;
+     app.exit(state->falling&&state->entering&&state->exiting?0:14);
+    }
+   }
+  });
+  timer->start(12);
  });
 }
 

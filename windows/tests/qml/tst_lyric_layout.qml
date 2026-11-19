@@ -40,6 +40,32 @@ Item {
             const y=timeline.contentY;controller.currentLine=1;controller.lyricPosition=6000;wait(30);compare(timeline.contentY,y)
             lyricView.recover();verify(!timeline.userScrolling)
         }
+        function test_browsing_displays_focused_line_time(){
+            const timeline=findChild(lyricView,"lyricTimeline")
+            const indicator=findChild(lyricView,"lyricBrowseIndicator")
+            const label=findChild(indicator,"lyricBrowseTime")
+            const row=timeline.itemAtIndex(1)
+            verify(row!==null)
+            timeline.manual()
+            timeline.contentY=row.y+row.height/2-timeline.height*lyricView.focusPosition
+            tryCompare(label,"text","0:05")
+            verify(indicator.visible)
+            lyricView.recover()
+            tryCompare(indicator,"visible",false)
+        }
+        function test_wheel_sensitivity_changes_scroll_distance(){
+            const timeline=findChild(lyricView,"lyricTimeline")
+            lyricView.configuration=Object.assign({},lyricView.configuration,{wheelSensitivity:.5})
+            const start=timeline.contentY
+            mouseWheel(timeline,100,120,0,-120)
+            tryVerify(function(){return timeline.userScrolling&&timeline.contentY>start})
+            const gentle=timeline.contentY-start
+            lyricView.recover()
+            const reset=timeline.contentY
+            lyricView.configuration=Object.assign({},lyricView.configuration,{wheelSensitivity:2})
+            mouseWheel(timeline,100,120,0,-120)
+            tryVerify(function(){return timeline.contentY-reset>gentle*2})
+        }
         function test_before_first_timestamp_positions_without_highlighting(){
             controller.currentLine=-1;controller.lyricPosition=0;wait(60)
             const timeline=findChild(lyricView,"lyricTimeline")

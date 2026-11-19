@@ -45,15 +45,26 @@ ApplicationWindow {
     property bool chromeRevealed:!autoHideControls||mainChrome.pointerInTitleBar||minimizeControl.visualFocus||maximizeControl.visualFocus||closeControl.visualFocus
     property bool gearRevealed:!autoHideControls||mainChrome.pointerNearControls||settingsGear.hovered||settingsGear.visualFocus
     function material(scope){var revision=root.settingsRevision;return backend.appearanceConfig(scope)}
-    property int pendingPage:0
+    property real drawerProgress:0
+    readonly property real stageProgress:drawerProgress
+    property bool changingPage:false
+    function stage(start,end){return Math.max(0,Math.min(1,(stageProgress-start)/(end-start)))}
+    function fall(start,end){return Math.pow(stage(start,end),2.45)*(height+28)/contentScale}
     property bool restoreMaximizedAfterFullscreen:false
     function toggleFullscreen(){if(visibility===Window.FullScreen){if(restoreMaximizedAfterFullscreen)showMaximized();else showNormal()}else{restoreMaximizedAfterFullscreen=visibility===Window.Maximized;showFullScreen()}}
     function changePage(next){
-        pendingPage=next
-        if(next===page&&!pageMotion.running)return
-        if(page===2&&next!==2)settingsPage.rememberPosition()
+        if(next===page)return
+        const from=stageProgress
+        if(page===2)settingsPage.rememberPosition()
+        if(next===2&&volumePopup.visible)volumePopup.close()
         pageMotion.stop()
-        if(!motion||!visible){page=next;pageStack.opacity=1;pageOffset.y=0;return}
+        changingPage=true
+        page=next
+        changingPage=false
+        const target=next===2?1:0
+        if(!motion||!visible){drawerProgress=target;return}
+        drawerProgress=from;pageMotion.from=from;pageMotion.to=target
+        pageMotion.duration=Math.max(80,Math.round(560*Math.abs(target-from)))
         pageMotion.start()
     }
     function openSettings(group,section){
@@ -61,7 +72,11 @@ ApplicationWindow {
         else {settingsPage.prepare(group);settingsPage.navigate(group,section===undefined?0:section)}
         root.changePage(2)
     }
-    onPageChanged:if(page===1)openSettings(1,0)
+    function toggleSettings(){if(page===2)changePage(0);else openSettings()}
+    onPageChanged: {
+        if(page===1)openSettings(1,0)
+        else if(!changingPage)drawerProgress=page===2?1:0
+    }
     function save(key, value) { backend.setSetting(key, value) }
     function time(ms) { var s = Math.max(0, Math.floor(ms/1000)); return Math.floor(s/60)+":"+(s%60<10?"0":"")+(s%60) }
     function supports(cmd) { return backend.online && backend.commands.indexOf(cmd)>=0 }
@@ -201,8 +216,9 @@ ApplicationWindow {
     AmbientScene {id:ambient;anchors.fill:parent;visible:!root.highContrast;opacity:root.backgroundOpacity}
     ColumnLayout {
         id:canvasLayout
-        readonly property real topInset:root.page===0?Math.max(40,root.canvasMargin):48
-        readonly property real bottomInset:root.page===0?Math.max(28,root.canvasMargin*.65):32
+        readonly property real topInset:Math.max(40,root.canvasMargin)
+        readonly property real bottomInset:Math.max(28,root.canvasMargin*.65)
+        visible:root.page===0||root.stageProgress<.72
         x:root.canvasMargin*root.contentScale
         y:topInset*root.contentScale
         width:root.width/root.contentScale-2*root.canvasMargin
@@ -210,34 +226,23 @@ ApplicationWindow {
         scale:root.contentScale
         transformOrigin:Item.TopLeft
         spacing:28
-        StackLayout {
-            id:pageStack;transform:Translate{id:pageOffset}
-            enabled:!pageMotion.running
-            currentIndex:root.page===0?0:1;Layout.fillWidth:true;Layout.fillHeight:true
-            NowPlayingCanvas {
+        NowPlayingCanvas {
+                Layout.fillWidth:true;Layout.fillHeight:true
                 id:homePage;controller:backend;settingsRevision:root.settingsRevision;rasterScale:root.contentScale
+                artworkDeparture:root.fall(.015,.64);metadataDeparture:root.fall(.06,.68);lyricsDeparture:root.fall(.10,.72)
                 light:root.light;motion:root.motion;lyricsEnabled:root.showLyrics
                 textColor:root.fg;secondaryColor:root.muted;accent:root.accent
                 onConnectRequested:root.openSettings(1,0)
                 onMatchRequested:{query.text=backend.titleForSearch()+" "+backend.artist;matchDialog.open()}
                 onSeekRequested:function(position){backend.command("seek",position)}
-            }
-            SettingsPage {
-                id:settingsPage;objectName:"settingsPage";highContrast:root.highContrast;materialSource:ambient;controller:backend;settingsRevision:root.settingsRevision;light:root.light;motion:root.motion;accent:root.accent;textColor:root.fg;rasterScale:root.contentScale
-                onCloseRequested:root.changePage(0)
-                onDesktopLyricsRequested:desktop.toggleRequested()
-                onFloatingRequested:floating.visible=!floating.visible
-                onImportLyricsRequested:lyricFile.open()
-                onMatchLyricsRequested:{query.text=backend.titleForSearch()+" "+backend.artist;matchDialog.open()}
-                onSearchDevicesRequested:{discovery.open();backend.discover()}
-                onForgetDeviceRequested:function(url){root.selectedDeviceUrl=url;revoke.open()}
-                onActionRequested:function(key){if(key==="editDesktopLyrics"){desktop.editRequested()}}
-            }
         }
+        Item {
+        Layout.alignment:Qt.AlignHCenter;Layout.preferredWidth:Math.min(660,canvasLayout.width)
+        implicitHeight:playbackDock.capsule?84:100
         GlassMaterial {
-            id:playbackDock;opacity:pageStack.opacity;objectName:"playbackDock";property bool capsule:root.pref("dock/shape","rounded")==="capsule";configuration:capsule?Object.assign({},root.material("dock"),{glassRadius:height/2}):root.material("dock");motion:root.motion
+            id:playbackDock;objectName:"playbackDock";property bool capsule:root.pref("dock/shape","rounded")==="capsule";configuration:capsule?Object.assign({},root.material("dock"),{glassRadius:height/2}):root.material("dock");motion:root.motion
             rasterScale:root.contentScale
-            Layout.alignment:Qt.AlignHCenter;Layout.preferredWidth:Math.min(660,canvasLayout.width);implicitHeight:capsule?84:100;visible:root.page===0
+            width:parent.width;height:parent.height;y:root.fall(0,.48)
             sourceItem:ambient;glassEnabled:root.liquidStyle;cornerRadius:design.dockRadius;dark:!root.light;active:root.visible&&root.visibility!==Window.Minimized&&visible;backdropColor:root.bg;tintColor:design.elevated;tintStrength:root.light?.10+root.glass*.44:.04+root.glass*.25;fallbackColor:design.surface
             CapsuleProgress {
                 rasterScale:root.contentScale
@@ -268,16 +273,26 @@ ApplicationWindow {
                 }
             }
         }
-    }
-    SequentialAnimation {
-        id:pageMotion
-        NumberAnimation{target:pageStack;property:"opacity";to:0;duration:90;easing.type:Easing.OutCubic}
-        ScriptAction{script:{root.page=root.pendingPage;pageOffset.y=root.page===0?-10:12}}
-        ParallelAnimation{
-            NumberAnimation{target:pageStack;property:"opacity";to:1;duration:190;easing.type:Easing.OutCubic}
-            NumberAnimation{target:pageOffset;property:"y";to:0;duration:230;easing.type:Easing.OutCubic}
         }
     }
+    SettingsPage {
+        id:settingsPage;objectName:"settingsPage";highContrast:root.highContrast;materialSource:ambient;controller:backend;settingsRevision:root.settingsRevision;light:root.light;motion:root.motion;accent:root.accent;textColor:root.fg;rasterScale:root.contentScale
+        x:canvasLayout.x;width:canvasLayout.width;height:root.height/root.contentScale-80
+        transformOrigin:Item.TopLeft;scale:root.contentScale
+        y:48*scale+(root.height-48*scale+12)*Math.pow(1-root.stage(.32,1),3.5)
+        entranceOffset:22*Math.pow(1-root.stage(.49,1),2.65)
+        visible:root.page===2||root.stageProgress>.32
+        onCloseRequested:root.changePage(0)
+        onDesktopLyricsRequested:desktop.toggleRequested()
+        onFloatingRequested:floating.visible=!floating.visible
+        onImportLyricsRequested:lyricFile.open()
+        onMatchLyricsRequested:{query.text=backend.titleForSearch()+" "+backend.artist;matchDialog.open()}
+        onSearchDevicesRequested:{discovery.open();backend.discover()}
+        onForgetDeviceRequested:function(url){root.selectedDeviceUrl=url;revoke.open()}
+        onActionRequested:function(key){if(key==="editDesktopLyrics"){desktop.editRequested()}}
+    }
+    NumberAnimation{id:pageMotion;target:root;property:"drawerProgress"}
+    MouseArea{anchors.fill:parent;z:20;visible:pageMotion.running;acceptedButtons:Qt.AllButtons;onWheel:function(event){event.accepted=true}}
     AppDialog {
         id:discovery;objectName:"discovery";title:qsTr("Search devices");anchors.centerIn:parent;width:Math.min(440,root.width-48);height:Math.min(root.height-64,implicitHeight);modal:true;standardButtons:Dialog.Close
         ColumnLayout {anchors.fill:parent
@@ -416,17 +431,17 @@ ApplicationWindow {
             WindowButton{id:maximizeControl;objectName:"maximizeControl";text:mainChrome.maximized?qsTr("Restore"):qsTr("Maximize");iconName:mainChrome.maximized?"copy":"square";onClicked:mainChrome.toggleMaximized()}
             WindowButton{id:closeControl;objectName:"closeControl";text:qsTr("Close");iconName:"x";onClicked:mainChrome.close()}
         }
-        Action{id:settingsGear;objectName:"settingsGear";anchors.right:captionControls.left;anchors.rightMargin:8;anchors.top:parent.top;anchors.topMargin:4;implicitHeight:36;text:qsTr("Settings");iconName:"settings";opacity:root.gearRevealed?1:0;onHoveredChanged:if(hovered)settingsPage.prepare(settingsPage.activeGroup);onClicked:root.openSettings()
+        Action{id:settingsGear;objectName:"settingsGear";anchors.right:captionControls.left;anchors.rightMargin:8;anchors.top:parent.top;anchors.topMargin:4;implicitHeight:36;text:root.page===2?qsTr("Close settings"):qsTr("Settings");iconName:"settings";opacity:root.gearRevealed?1:0;onHoveredChanged:if(hovered)settingsPage.prepare(settingsPage.activeGroup);onClicked:root.toggleSettings()
             Behavior on opacity{NumberAnimation{duration:design.fast}}
         }
     }
     Shortcut{sequence:"F11";onActivated:root.toggleFullscreen()}
-    Shortcut{sequence:"Escape";enabled:root.visibility===Window.FullScreen;onActivated:root.toggleFullscreen()}
-    Shortcut{sequence:root.pref("shortcut/settings","Ctrl+,");onActivated:root.openSettings()}
+    Shortcut{sequence:"Escape";enabled:root.page===0&&root.visibility===Window.FullScreen;onActivated:root.toggleFullscreen()}
+    Shortcut{sequence:root.pref("shortcut/settings","Ctrl+,");onActivated:root.toggleSettings()}
     Shortcut{sequence:root.pref("shortcut/devices","Ctrl+Shift+D");onActivated:root.openSettings(1,0)}
     Shortcut{sequence:root.pref("shortcut/desktop","Ctrl+Shift+L");onActivated:desktop.toggleRequested()}
     Shortcut{sequence:root.pref("shortcut/floating","Ctrl+Shift+P");onActivated:floating.visible=!floating.visible}
-    Shortcut{sequence:"Escape";enabled:root.page!==0;onActivated:root.page=0}
+    Shortcut{sequence:"Escape";enabled:root.page===2;onActivated:root.changePage(0)}
     Popup{
         id:volumePopup;parent:volumeButton;x:(parent.width-width)/2;y:-height-6;width:56;height:174;padding:8
         modal:false;focus:false;closePolicy:Popup.CloseOnEscape|Popup.CloseOnPressOutsideParent

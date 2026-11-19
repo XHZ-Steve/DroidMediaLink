@@ -18,6 +18,9 @@ Item {
     property bool changingLayout: false
     readonly property int mode: {settingsRevision;return controller.setting("home/layout",0)}
     property real rasterScale:1
+    property real artworkDeparture:0
+    property real metadataDeparture:0
+    property real lyricsDeparture:0
     readonly property real artworkScale:{settingsRevision;return Math.max(.55,Math.min(1.35,controller.setting("home/artworkScale",1)))}
     readonly property real artworkShare:Math.min(.6,.46+Math.max(0,artworkScale-1)*.4)
     readonly property bool split: mode!==0 && width>780 && width/Math.max(1,height)>1.12
@@ -174,6 +177,7 @@ Item {
     readonly property real artworkExtent:Math.max(1,Math.min(artworkLimit,nominalArtworkExtent*artworkScale))
     CoverArtwork {
         id: artwork;objectName:"heroArtwork"
+        transform:Translate{y:canvas.artworkDeparture}
         width:canvas.coverGeometry.width;height:canvas.coverGeometry.height
         x:canvas.coverGeometry.x;y:canvas.coverGeometry.y
         source:canvas.controller.artwork;motion:canvas.motion&&canvas.active;transitionDuration:Math.min(240,tokens.change)
@@ -184,6 +188,7 @@ Item {
     }
     Item {
         id:metadata;objectName:"trackMetadata"
+        transform:Translate{y:canvas.metadataDeparture}
         x:canvas.metadataGeometry.x;y:canvas.metadataGeometry.y
         width:canvas.metadataGeometry.width;height:canvas.metadataGeometry.height
         implicitHeight:titleMeasure.implicitHeight+(artistLabel.visible?artistLabel.implicitHeight+7:0)+(sourceLabel.visible?sourceLabel.implicitHeight+7:0)+(connectButton.visible?43:0)
@@ -226,6 +231,7 @@ Item {
     }
     Item {
         id:homeLyrics;objectName:"homeLyrics"
+        transform:Translate{y:canvas.lyricsDeparture}
         x:canvas.lyricGeometry.x;y:canvas.lyricGeometry.y;width:canvas.lyricGeometry.width;height:canvas.lyricGeometry.height
         readonly property real expansion:canvas.changingLayout?canvas.mix(canvas.fromGeometry.expansion,canvas.toGeometry.expansion):canvas.lyricsMode?1:0
         readonly property bool expandedSplit:canvas.changingLayout&&canvas.fromGeometry.expansion>.001?canvas.fromGeometry.expandedSplit:canvas.split

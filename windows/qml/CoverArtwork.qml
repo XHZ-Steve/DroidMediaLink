@@ -46,14 +46,12 @@ Item {
         layer.enabled:cover.cornerRadius>0&&visible&&GraphicsInfo.api!==GraphicsInfo.Software
         layer.smooth:true
         layer.textureSize:Qt.size(Math.ceil(width*Screen.devicePixelRatio*cover.rasterScale),Math.ceil(height*Screen.devicePixelRatio*cover.rasterScale))
-        layer.effect:MultiEffect {maskEnabled:true;maskSource:artworkMask}
-        Rectangle {
-            id:artworkMask
-            anchors.centerIn:parent
-            width:picture.width;height:picture.height;color:"transparent"
-            layer.enabled:picture.layer.enabled;layer.smooth:true;visible:false
-            layer.textureSize:picture.layer.textureSize
-            Rectangle{anchors.centerIn:parent;width:picture.paintedWidth;height:picture.paintedHeight;antialiasing:true;radius:Math.min(cover.cornerRadius,width/2,height/2);color:"white"}
+        layer.effect:ShaderEffect {
+            property var source
+            property vector2d extent:Qt.vector2d(picture.width,picture.height)
+            property vector2d artworkExtent:Qt.vector2d(picture.paintedWidth,picture.paintedHeight)
+            property real radius:Math.min(cover.cornerRadius,picture.paintedWidth/2,picture.paintedHeight/2)
+            fragmentShader:"qrc:/qt/qml/DroidMediaLink/shaders/covermask.frag.qsb"
         }
     }
     Item{id:artworkContent;anchors.fill:parent

@@ -136,6 +136,12 @@ Item {
             const flick=findChild(page,"settingsScroll").contentItem
             tryVerify(function(){return flick.contentHeight>flick.height+180})
             wait(80)
+            mouseWheel(flick,Math.round(flick.width*.52),Math.round(flick.height*.72),0,-120)
+            tryVerify(function(){return flick.contentY>0})
+            flick.cancelFlick();flick.contentY=0
+            mouseDrag(flick,Math.round(flick.width*.52),Math.round(flick.height*.72),0,-110,Qt.LeftButton)
+            tryVerify(function(){return flick.contentY>30})
+            flick.cancelFlick()
             flick.contentY=180
             page.rememberPosition()
             page.visible=false

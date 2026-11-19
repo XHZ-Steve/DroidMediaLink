@@ -408,6 +408,10 @@
 <context>
     <name>Main</name>
     <message>
+        <source>Close settings</source>
+        <translation>退出设置</translation>
+    </message>
+    <message>
         <source>The interface could not be loaded.</source>
         <translation>界面加载失败。</translation>
     </message>
@@ -869,6 +873,38 @@
 </context>
 <context>
     <name>Settings</name>
+    <message>
+        <source>Import</source>
+        <translation>导入</translation>
+    </message>
+    <message>
+        <source>Export</source>
+        <translation>导出</translation>
+    </message>
+    <message>
+        <source>Restore</source>
+        <translation>恢复</translation>
+    </message>
+    <message>
+        <source>Check</source>
+        <translation>检查</translation>
+    </message>
+    <message>
+        <source>Multisample antialiasing</source>
+        <translation>多重采样抗锯齿</translation>
+    </message>
+    <message>
+        <source>Vertical sync</source>
+        <translation>垂直同步</translation>
+    </message>
+    <message>
+        <source>Takes effect after restarting the app.</source>
+        <translation>重启应用后生效。</translation>
+    </message>
+    <message>
+        <source>Lyric wheel sensitivity</source>
+        <translation>歌词滚轮灵敏度</translation>
+    </message>
     <message>
         <source>Home artwork corner radius</source>
         <translation>主页封面圆角</translation>

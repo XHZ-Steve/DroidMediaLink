@@ -68,7 +68,7 @@ qt_add_resources(glass_smoke "glass_smoke_qml" PREFIX "/qt/qml/DroidMediaLink" F
 
 qt_add_shaders(DroidMediaLink "ambient_shaders" PRECOMPILE
  PREFIX "/qt/qml/DroidMediaLink/shaders" BASE "${CMAKE_CURRENT_SOURCE_DIR}/shaders"
- GLSL "300 es,330" HLSL 50 MSL 12 FILES shaders/ambient.frag shaders/lyricink.frag shaders/lyricfade.frag shaders/lyricfocus.frag)
+ GLSL "300 es,330" HLSL 50 MSL 12 FILES shaders/ambient.frag shaders/lyricink.frag shaders/lyricfade.frag shaders/lyricfocus.frag shaders/covermask.frag)
 
 qt_add_executable(lyrics_tests tests/lyrics_tests.cpp)
 target_include_directories(lyrics_tests PRIVATE src)

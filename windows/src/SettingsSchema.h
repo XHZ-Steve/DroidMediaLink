@@ -18,7 +18,12 @@ inline QVariantList descriptors(){
  QVariantList out;
  const QStringList fonts=qobject_cast<QGuiApplication*>(QCoreApplication::instance())?QFontDatabase::families():QStringList{"Microsoft YaHei UI"};
  auto add=[&](QString key,const char *label,int group,int section,QString type,QVariant value,double min=0,double max=1,double step=1,QVariantList choices={},bool advanced=false,QString help={}){out<<QVariantMap{{"key",key},{"label",QCoreApplication::translate("Settings",label)},{"group",group},{"section",section},{"type",type},{"defaultValue",value},{"min",min},{"max",max},{"step",step},{"options",choices},{"advanced",advanced},{"help",help}};};
- auto action=[&](const char *key,const char *label,int group,int section){add("action/"+QString(key),label,group,section,"action",{});auto row=out.takeLast().toMap();row["action"]=key;out<<row;};
+ auto action=[&](const char *key,const char *label,int group,int section,const char *button=nullptr){
+  add("action/"+QString(key),label,group,section,"action",{});
+  auto row=out.takeLast().toMap();row["action"]=key;
+  if(button)row["buttonLabel"]=QCoreApplication::translate("Settings",button);
+  out<<row;
+ };
 #define S(key,label,g,s,type,value,...) add(key,QT_TRANSLATE_NOOP("Settings",label),g,s,type,value __VA_OPT__(,) __VA_ARGS__)
  S("language","Language",0,0,"enum","zh_CN",0,1,1,options({"zh_CN","en"}));
  S("general/autostart","Start with Windows",0,1,"bool",false);
@@ -41,10 +46,7 @@ inline QVariantList descriptors(){
  S("cover/providers/netease/enabled","NetEase covers (experimental)",2,0,"bool",true);
  S("cover/providers/qq/enabled","QQ Music covers (experimental)",2,0,"bool",true);
  S("cover/providers/musicbrainz/enabled","MusicBrainz / CAA covers",2,0,"bool",true);
- S("cache/directory","Cache folder",5,1,"directory","");
- S("cover/cacheMB","Cover cache limit (MB)",5,1,"int",256,32,2048,32);
- action("refreshCoverArt","Refresh high-resolution cover",2,0);{auto row=out.takeLast().toMap();row["buttonLabel"]=QCoreApplication::translate("Settings","Refresh");out<<row;}
- action("clearCoverArtCache","Clear cover cache",5,1);{auto row=out.takeLast().toMap();row["buttonLabel"]=QCoreApplication::translate("Settings","Clear cache");out<<row;}
+ action("refreshCoverArt","Refresh high-resolution cover",2,0,QT_TRANSLATE_NOOP("Settings","Refresh"));
  S("media/smtc","System media controls",2,2,"bool",true);
  S("info/volume","Phone volume",2,3,"readonly","");
  S("lyrics/online","Online lyrics",3,0,"bool",true);
@@ -99,9 +101,22 @@ inline QVariantList descriptors(){
  S("theme/brand","Brand",4,0,"enum","spotify",0,1,1,options({"spotify","netease","qqmusic","kugou","youtube","apple"}));
  S("appearance/style","Software style",4,2,"enum","liquid",0,1,1,options({"standard","liquid"}));
  S("motion","Animations",4,3,"bool",true);
+ const auto restartHelp=QCoreApplication::translate("Settings","Takes effect after restarting the app.");
+ S("graphics/msaa","Multisample antialiasing",5,0,"enum",0,0,8,1,(QVariantList{
+  QVariantMap{{"label",QCoreApplication::translate("Settings","Off")},{"value",0}},
+  QVariantMap{{"label",QStringLiteral("2×")},{"value",2}},QVariantMap{{"label",QStringLiteral("4×")},{"value",4}},
+  QVariantMap{{"label",QStringLiteral("8×")},{"value",8}}}),false,restartHelp);
+ S("graphics/vsync","Vertical sync",5,0,"bool",true,0,1,1,{},false,restartHelp);
  S("info/renderer","Renderer",5,0,"readonly","Qt Quick / QWindowKit");
- action("resetSettings","Restore defaults",5,1);action("clearLyricsCache","Clear lyrics cache",5,1);{auto row=out.takeLast().toMap();row["buttonLabel"]=QCoreApplication::translate("Settings","Clear cache");out<<row;}action("exportSettings","Export settings",5,1);action("importSettings","Import settings",5,1);
- action("checkUpdates","Check updates",5,2);action("exportDiagnostics","Export diagnostics",5,3);
+ S("cache/directory","Cache folder",5,1,"directory","");
+ S("cover/cacheMB","Cover cache limit (MB)",5,1,"int",256,32,2048,32);
+ action("clearCoverArtCache","Clear cover cache",5,1,QT_TRANSLATE_NOOP("Settings","Clear cache"));
+ action("clearLyricsCache","Clear lyrics cache",5,1,QT_TRANSLATE_NOOP("Settings","Clear cache"));
+ action("importSettings","Import settings",5,1,QT_TRANSLATE_NOOP("Settings","Import"));
+ action("exportSettings","Export settings",5,1,QT_TRANSLATE_NOOP("Settings","Export"));
+ action("resetSettings","Restore defaults",5,1,QT_TRANSLATE_NOOP("Settings","Restore"));
+ action("checkUpdates","Check updates",5,2,QT_TRANSLATE_NOOP("Settings","Check"));
+ action("exportDiagnostics","Export diagnostics",5,3,QT_TRANSLATE_NOOP("Settings","Export"));
  out+=LyricStyleSettings::descriptors(fonts);
  for(auto &value:out){auto row=value.toMap();if(row["key"]=="lyrics/alignment"){row["hidden"]=true;value=row;}}
  const QList<QPair<QString,QString>> aliases{{"font","字体 ziti"},{"size","字号 大小 zihao daxiao"},{"weight","字重 粗细 zizhong cuxi"},{"color","颜色 填充 yanse tianchong"},{"opacity","透明度 toumingdu"},{"scale","缩放 放大 suofang fangda"},{"letterspacing","字距 ziju"},{"linespacing","行距 hangju"},{"spacing","间距 jianju"},{"align","对齐 duiqi"},{"translation","翻译 译文 fanyi yiwen"},{"romanization","罗马音 luomayin"},{"shadow","阴影 yinying"},{"glow","辉光 huiguang"},{"outline","描边 miaobian"},{"scroll","滚动 gundong"},{"focus","焦点 jiaodian"},{"fade","渐隐 jianyin"},{"word","逐字 zhuzi"},{"width","宽度 kuandu"},{"height","高度 gaodu"},{"render","渲染 xuanran"},{"provider","来源 优先级 laiyuan youxianji"},{"language","语言 yuyan"},{"autostart","开机 自启 kaiji ziqi"},{"shortcut","快捷键 kuaijiejian"},{"volume","音量 yinliang"},{"reconnect","重连 chonglian"},{"cache","缓存 huancun"},{"theme","主题 zhuti"},{"background","背景 beijing"},{"motion","动画 donghua"}};

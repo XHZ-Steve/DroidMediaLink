@@ -10,6 +10,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
+#include <QSurfaceFormat>
 #include <QQuickItem>
 #include <QQuickStyle>
 #include <QSystemTrayIcon>
@@ -82,6 +83,12 @@ int main(int argc,char **argv){
  QTranslator translator;QSettings settings;QString locale=settings.value("preferences/language",QLocale::system().name()).toString();if(translator.load("droidmedialink_"+locale,QCoreApplication::applicationDirPath()+"/translations"))app.installTranslator(&translator);
  if(profileIndex>=0){const auto args=app.arguments();int at=args.indexOf("--test-style");if(at>=0&&at+1<args.size())settings.setValue("preferences/appearance/style",args[at+1]=="liquid"?"liquid":"standard");if(args.contains("--test-light"))settings.setValue("preferences/light",true);}
  Bridge backend;DragRefreshGuard dragRefresh(backend);app.installNativeEventFilter(&dragRefresh);
+ if(sceneBackend!=QStringLiteral("software")){
+  auto format=QSurfaceFormat::defaultFormat();
+  format.setSamples(backend.setting("graphics/msaa",0).toInt());
+  format.setSwapInterval(backend.setting("graphics/vsync",true).toBool()?1:0);
+  QSurfaceFormat::setDefaultFormat(format);
+ }
  if(profileIndex>=0){const auto args=app.arguments();int at=args.indexOf("--preview-media");if(at>=0&&at+1<args.size()){QFile file(args[at+1]);if(file.open(QIODevice::ReadOnly)&&file.size()<=65536)backend.previewMediaForTest(QJsonDocument::fromJson(file.readAll()).object());}at=args.indexOf("--test-layout");if(at>=0&&at+1<args.size())backend.setSetting("home/layout",args[at+1].toInt());}
  if(profileIndex>=0){const auto args=app.arguments();int at=args.indexOf("--preview-cover");if(at>=0&&at+1<args.size())backend.previewCoverForTest(args[at+1]);}
  if(profileIndex>=0){const auto args=app.arguments();int at=args.indexOf("--preview-lyrics");if(at>=0&&at+1<args.size())backend.importLyrics(QUrl::fromLocalFile(QFileInfo(args[at+1]).absoluteFilePath()));}
@@ -128,6 +135,8 @@ QObject::connect(&app,&QCoreApplication::aboutToQuit,&backend,[&]{settings.setVa
  const int settingsPerfIndex=arguments.indexOf("--settings-performance-audit");if(profileIndex>=0&&settingsPerfIndex>=0&&settingsPerfIndex+1<arguments.size())startSettingsPerformanceAudit(window,arguments[settingsPerfIndex+1],app);
  const int motionIndex=arguments.indexOf("--layout-motion-audit");if(profileIndex>=0&&motionIndex>=0&&motionIndex+1<arguments.size())startLayoutMotionAudit(window,arguments[motionIndex+1],app,!arguments.contains("--motion-metrics-only"));
  if(profileIndex>=0&&arguments.contains("--settings-binding-smoke"))startUiBindingSmoke(window,backend,QDir(arguments[profileIndex+1]).filePath("ui-binding-smoke.json"),app);
+ const int drawerIndex=arguments.indexOf("--settings-drawer-smoke");
+ if(profileIndex>=0&&drawerIndex>=0&&drawerIndex+1<arguments.size())startSettingsDrawerSmoke(window,arguments[drawerIndex+1],app);
  const int transportIndex=arguments.indexOf("--transport-smoke");if(transportIndex>=0&&transportIndex+1<arguments.size())startTransportSmoke(window,backend,arguments[transportIndex+1],app);
  int captureIndex=arguments.indexOf("--capture");if(captureIndex>=0&&captureIndex+1<arguments.size()){QString path=arguments[captureIndex+1];int delay=1800;int delayIndex=arguments.indexOf("--capture-delay");if(delayIndex>=0&&delayIndex+1<arguments.size())delay=qBound(500,arguments[delayIndex+1].toInt(),120000);QTimer::singleShot(delay,&app,[captureWindow,path,&app]{const bool saved=captureWindow->grabWindow().save(path);app.exit(saved?0:4);});}
  // Exercises the actual tray signal handlers with the main window hidden.

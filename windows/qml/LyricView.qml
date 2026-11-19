@@ -69,7 +69,8 @@ Item {
  readonly property int line:controller&&rows.length?Math.max(0,controller.currentLine):-1
  readonly property bool untimed:rows.length>0&&rows[0].untimed===true
  readonly property bool active:visible&&Window.window&&Window.window.visible&&Window.window.visibility!==Window.Minimized
- readonly property bool edgeLayer:active&&!compact&&(originalFocus>0||(option("fadeStrength",1)>0&&(option("fadeTop",70)>0||option("fadeBottom",70)>0)))&&GraphicsInfo.api!==GraphicsInfo.Software
+ readonly property real inkOverhang:option("glow",false)||option("wordGlow",false)||outlineWidth>0||shadow?Math.ceil((inkPadding+2)*reserveScale):0
+ readonly property bool edgeLayer:active&&(inkOverhang>0||!compact&&(originalFocus>0||(option("fadeStrength",1)>0&&(option("fadeTop",70)>0||option("fadeBottom",70)>0))))&&GraphicsInfo.api!==GraphicsInfo.Software
  readonly property real topFade:Math.min(option("fadeTop",70),height*.28)
  readonly property real bottomFade:Math.min(option("fadeBottom",70),height*.28)
  readonly property var timelinePosition:active&&controller?controller.lyricPosition:0
@@ -114,7 +115,7 @@ Item {
  onWidthChanged:Qt.callLater(timeline.follow)
  Component.onCompleted:{sampleSettings();syncClock()}
  Component.onDestruction:if(controller&&typeof controller.setLyricsVisible==="function")controller.setLyricsVisible(clockSurface,false)
- clip:true
+ clip:!edgeLayer
 
  component Glyph:Item {
   id:glyph;objectName:"lyricGlyph"
@@ -133,7 +134,7 @@ Item {
   width:Math.max(1,Math.min(limit,measure.advanceWidth))
   height:Math.max(view.fontSize*view.option("lineHeight",1.25),layoutSizer.implicitHeight)
   Text{id:layoutSizer;visible:false;width:glyph.width;text:glyph.value;textFormat:Text.PlainText;font:glyph.metricsFace;wrapMode:Text.NoWrap;lineHeight:view.option("lineHeight",1.25)}
-  Text {id:base;visible:!glyph.highlight;width:glyph.width;text:glyph.value;textFormat:Text.PlainText;font:glyph.face;wrapMode:Text.NoWrap;elide:view.longLine==="elide"?Text.ElideRight:Text.ElideNone;color:glyph.inkColor;renderType:view.rendering;renderTypeQuality:104;lineHeight:view.option("lineHeight",1.25)}
+  Text {id:base;visible:!glyph.highlight;width:glyph.width;clip:view.longLine==="wrap"&&measure.advanceWidth>glyph.width+.5;text:glyph.value;textFormat:Text.PlainText;font:glyph.face;wrapMode:Text.NoWrap;elide:view.longLine==="elide"?Text.ElideRight:Text.ElideNone;color:glyph.inkColor;renderType:view.rendering;renderTypeQuality:104;lineHeight:view.option("lineHeight",1.25)}
   readonly property real fill:view.option("wordFill","continuous")==="step"?(progress>=1?1:0):Math.max(0,Math.min(1,progress))
   readonly property real soft:fill>0&&fill<1?Math.min(fill,.3,view.option("wordSoftness",.04)):0
   Item {
@@ -213,21 +214,24 @@ Item {
    spacing:0
    Item {
     id:originalSlot;objectName:"lyricOriginalSlot"
-    x:rowItem.scrolling?(rowItem.width-rowItem.scrollViewportWidth)*view.alignmentPosition-body.x:0;width:rowItem.scrolling?rowItem.scrollViewportWidth:parent.width;height:primary.height*view.reserveScale*rowItem.shrink;clip:rowItem.scrolling
+    readonly property real overhang:rowItem.scrolling&&view.edgeLayer?view.inkOverhang:0
+    x:rowItem.scrolling?(rowItem.width-rowItem.scrollViewportWidth)*view.alignmentPosition-body.x-overhang:0
+    width:rowItem.scrolling?rowItem.scrollViewportWidth+2*overhang:parent.width
+    height:primary.height*view.reserveScale*rowItem.shrink;clip:rowItem.scrolling
     layer.enabled:view.active&&rowItem.scrolling&&rowItem.selected&&GraphicsInfo.api!==GraphicsInfo.Software
     layer.smooth:true
     layer.textureSize:Qt.size(Math.ceil(width*view.pixelDensity),Math.ceil(height*view.pixelDensity))
     layer.effect:ShaderEffect{
      property var source
      property vector4d fading:Qt.vector4d(0,0,0,1)
-     property vector4d focusWindow:Qt.vector4d(rowItem.scrollOffset>.5?18/Math.max(1,rowItem.scrollViewportWidth):0,rowItem.scrollDistance-rowItem.scrollOffset>.5?18/Math.max(1,rowItem.scrollViewportWidth):0,.001,0)
+     property vector4d focusWindow:Qt.vector4d(rowItem.scrollOffset>.5?Math.min(.45,(originalSlot.overhang+18)/Math.max(1,originalSlot.width)):0,rowItem.scrollDistance-rowItem.scrollOffset>.5?Math.min(.45,(originalSlot.overhang+18)/Math.max(1,originalSlot.width)):0,.001,0)
      fragmentShader:"qrc:/qt/qml/DroidMediaLink/shaders/lyricfocus.frag.qsb"
     }
     LyricInk {
      id:primary
      pixelDensity:view.pixelDensity
      width:(view.longLine==="scroll"?Math.max(1,words.childrenRect.width):rowItem.sourceWidth)+view.inkPadding*2;height:words.height+view.inkPadding*2
-     x:rowItem.scrolling?-rowItem.scrollOffset-view.inkPadding*scale:view.flushAlignment?(parent.width-width*scale)*view.alignmentPosition:view.alignment==="center"?(parent.width-width)/2:view.alignment==="right"?parent.width-width:0
+     x:rowItem.scrolling?originalSlot.overhang-rowItem.scrollOffset-view.inkPadding*scale:view.flushAlignment?(parent.width-width*scale)*view.alignmentPosition:view.alignment==="center"?(parent.width-width)/2:view.alignment==="right"?parent.width-width:0
      scale:rowItem.visualScale;transformOrigin:view.flushAlignment||rowItem.scrolling?Item.TopLeft:view.alignment==="center"?Item.Center:view.alignment==="right"?Item.Right:Item.Left
      outlineWidth:rowItem.selected&&width<=8192?view.outlineWidth:0;outlineColor:view.outlineColor
      shadow:rowItem.selected&&view.shadow&&width<=8192;shadowBlur:view.option("shadowBlur",6);shadowOffset:view.option("shadowOffset",2);shadowColor:view.option("shadowColor","#80000000")
@@ -289,22 +293,34 @@ Item {
   model:view.active?view.rows:null;spacing:Math.round(view.fontSize*view.lineSpacing);cacheBuffer:Math.max(0,height*.5)
   layer.enabled:view.edgeLayer
   layer.smooth:true
-  layer.textureSize:Qt.size(Math.ceil(width*view.pixelDensity),Math.ceil(height*view.pixelDensity))
+  layer.sourceRect:Qt.rect(-view.inkOverhang,0,width+2*view.inkOverhang,height)
+  layer.textureSize:Qt.size(Math.ceil(layer.sourceRect.width*view.pixelDensity),Math.ceil(height*view.pixelDensity))
   layer.effect:ShaderEffect {
    property var source
-   property vector4d fading:Qt.vector4d(view.topFade/Math.max(1,view.height),view.bottomFade/Math.max(1,view.height),view.option("fadeStrength",1),0)
+   property vector4d fading:Qt.vector4d(view.topFade/Math.max(1,view.height),view.bottomFade/Math.max(1,view.height),view.compact?0:view.option("fadeStrength",1),0)
    property vector4d focusWindow:Qt.vector4d(view.primaryRect.y/Math.max(1,view.height),(view.primaryRect.y+view.primaryRect.height)/Math.max(1,view.height),2/Math.max(1,view.height),view.originalFocus)
    fragmentShader:"qrc:/qt/qml/DroidMediaLink/shaders/lyricfocus.frag.qsb"
   }
   currentIndex:-1;highlight:null;highlightRangeMode:ListView.NoHighlightRange
   property bool userScrolling:false
   property bool positioned:false
+  property int browseIndex:-1
   topMargin:height;bottomMargin:height
   boundsBehavior:view.option("bounds","bounce")==="stop"?Flickable.StopAtBounds:Flickable.DragAndOvershootBounds
   maximumFlickVelocity:view.option("inertia",2500);flickDeceleration:view.option("deceleration",1800)
   rebound:Transition{NumberAnimation{properties:"x,y";duration:view.option("bounceDuration",240);easing.type:Easing.OutCubic}}
   interactive:view.interactive&&!view.compact;flickableDirection:Flickable.VerticalFlick
-  function manual(){scrollMotion.stop();userScrolling=true;resumeFollow.stop()}
+  function updateBrowseIndex(){
+   if(!userScrolling||view.desktop||view.compact||view.untimed||!count)return
+   const target=contentY+height*view.focusPosition
+   let index=indexAt(width/2,target)
+   if(index<0)index=indexAt(width/2,target+spacing)
+   if(index<0)index=indexAt(width/2,target-spacing)
+   if(index<0&&target<0)index=0
+   if(index<0&&target>=contentHeight)index=count-1
+   if(index>=0)browseIndex=index
+  }
+  function manual(){scrollMotion.stop();userScrolling=true;resumeFollow.stop();updateBrowseIndex()}
   function follow(){
    const i=view.line
    if(i<0||i>=count||userScrolling||!view.active||!view.option("autoScroll",true))return
@@ -319,15 +335,48 @@ Item {
   }
   onMovementStarted:manual()
   onMovementEnded:resumeFollow.restart()
-  onCountChanged:{currentIndex=-1;Qt.callLater(follow)}
+  onCountChanged:{currentIndex=-1;browseIndex=-1;Qt.callLater(follow)}
+  onContentYChanged:updateBrowseIndex()
   onHeightChanged:Qt.callLater(follow)
   delegate:Line{}
   NumberAnimation{id:scrollMotion;target:timeline;property:"contentY";duration:view.scrollDuration;easing.type:view.easingCurve==="linear"?Easing.Linear:view.easingCurve==="inOutCubic"?Easing.InOutCubic:view.easingCurve==="outQuint"?Easing.OutQuint:Easing.OutCubic}
   WheelHandler {enabled:view.interactive&&!view.compact;target:null;acceptedDevices:PointerDevice.Mouse
-   onWheel:function(event){timeline.manual();timeline.cancelFlick();const delta=(event.pixelDelta.y||event.angleDelta.y/120*view.fontSize*2)*view.option("wheelSensitivity",1.4);const target=Math.max(-timeline.topMargin,Math.min(timeline.contentHeight-timeline.height+timeline.bottomMargin,timeline.contentY-delta));scrollMotion.from=timeline.contentY;scrollMotion.to=target;scrollMotion.duration=Math.min(200,view.scrollDuration);scrollMotion.start();resumeFollow.restart();event.accepted=true}
+   onWheel:function(event){
+    const start=timeline.userScrolling&&scrollMotion.running?scrollMotion.to:timeline.contentY
+    timeline.manual();timeline.cancelFlick()
+    const delta=(event.pixelDelta.y||event.angleDelta.y/120*view.fontSize*2)*view.option("wheelSensitivity",1.4)
+    const target=Math.max(timeline.originY-timeline.topMargin,Math.min(timeline.originY+timeline.contentHeight-timeline.height+timeline.bottomMargin,start-delta))
+    scrollMotion.from=timeline.contentY;scrollMotion.to=target;scrollMotion.duration=view.motion?Math.min(200,view.scrollDuration):0
+    scrollMotion.start();resumeFollow.restart();event.accepted=true
+   }
   }
   Timer{id:resumeFollow;interval:view.option("recoveryDelay",2400);onTriggered:view.recover()}
   ScrollBar.vertical:ScrollBar{visible:view.interactive&&!view.compact;policy:ScrollBar.AsNeeded;implicitWidth:4;background:Item{}
  contentItem:Rectangle{radius:2;color:view.inactiveColor;opacity:.25}}
+ }
+ Rectangle {
+  id:browseIndicator
+  objectName:"lyricBrowseIndicator"
+  anchors.right:parent.right;anchors.bottom:parent.bottom;anchors.rightMargin:12;anchors.bottomMargin:Math.min(14,view.height*.07)
+  readonly property real timestamp:timeline.browseIndex>=0&&timeline.browseIndex<view.rows.length?view.rows[timeline.browseIndex].time:-1
+  readonly property real duration:Math.max(1,Number(view.controller?.duration)||0,view.rows.length?(view.rows[view.rows.length-1].end||view.rows[view.rows.length-1].time):0)
+  opacity:timeline.userScrolling&&timestamp>=0&&!view.desktop&&!view.compact?1:0
+  visible:opacity>0
+  Behavior on opacity{enabled:view.motion;NumberAnimation{duration:160}}
+  color:view.light?"#d9ffffff":"#c9202635";radius:13
+  width:marker.implicitWidth+18;height:30
+  Row {
+   id:marker;anchors.centerIn:parent;spacing:7
+   Rectangle{
+    anchors.verticalCenter:parent.verticalCenter;width:54;height:3;radius:1.5;color:Qt.rgba(view.textColor.r,view.textColor.g,view.textColor.b,.28)
+    Rectangle{width:parent.width*Math.max(0,Math.min(1,browseIndicator.timestamp/browseIndicator.duration));height:parent.height;radius:1.5;color:view.textColor}
+   }
+   Label{
+    objectName:"lyricBrowseTime"
+    readonly property int seconds:Math.max(0,Math.floor(browseIndicator.timestamp/1000))
+    text:Math.floor(seconds/60)+":"+String(seconds%60).padStart(2,"0")
+    color:view.textColor;font.pixelSize:12
+   }
+  }
  }
 }

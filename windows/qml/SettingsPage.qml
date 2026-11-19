@@ -24,6 +24,28 @@ Item {
     readonly property real contentInset: Math.max(16,(width-700)/2)
     property bool componentReady: false
     property real rasterScale:1
+    property real entranceOffset:0
+    component SettingsScroller: Control {
+        id:scroller
+        default property alias scrollContent:viewport.flickableData
+        property alias contentHeight:viewport.contentHeight
+        Accessible.role:Accessible.Pane
+        focusPolicy:Qt.TabFocus
+        Keys.onUpPressed:verticalBar.decrease()
+        Keys.onDownPressed:verticalBar.increase()
+        contentItem:Flickable {
+            id:viewport
+            acceptedButtons:Qt.LeftButton
+            flickableDirection:Flickable.VerticalFlick
+            boundsBehavior:Flickable.StopAtBounds
+            contentWidth:width
+            clip:true
+            ScrollBar.vertical:ScrollBar {
+                id:verticalBar;policy:ScrollBar.AsNeeded
+                contentItem:Rectangle{implicitWidth:5;radius:3;color:tokens.secondaryText;opacity:.45}
+            }
+        }
+    }
     property var collapsedSections: ({})
     property var appearanceScopes: ({})
     property var collapsedSubgroups: ({})
@@ -41,7 +63,7 @@ Item {
     signal forgetDeviceRequested(string url)
     signal actionRequested(string key)
     function prepare(group){const cached=groupCaches.itemAt(Math.max(0,Math.min(5,group)));if(cached)cached.visited=true}
-    Timer{interval:700;running:page.componentReady;repeat:false;onTriggered:page.prepare(0)}
+    Timer{interval:350;running:page.componentReady;repeat:false;onTriggered:page.prepare(0)}
     property int pendingGroup:initialGroup
     function requestCategory(group){pendingGroup=group;Qt.callLater(applyCategory)}
     function applyCategory(){if(activeGroup===pendingGroup)return;activeGroup=pendingGroup;activeSection=0;searchField.clear()}
@@ -638,6 +660,7 @@ Item {
     }
     ColumnLayout {
         anchors.fill:parent;anchors.leftMargin:page.contentInset;anchors.rightMargin:anchors.leftMargin;anchors.topMargin:16;anchors.bottomMargin:12;spacing:14
+        transform:Translate{y:page.entranceOffset}
         RowLayout {
             Layout.fillWidth:true;spacing:12
             FlatButton{objectName:"settingsBack";text:Icons.glyph("arrow-left");font.family:lucide.name;implicitWidth:38;implicitHeight:38;capsule:true;frosted:true;Accessible.name:qsTr("Back");onClicked:page.closeRequested()}
@@ -650,9 +673,11 @@ Item {
                 FlatButton{required property int index;required property string modelData;objectName:"settings-category-"+index;text:modelData;capsule:true;frosted:true;checked:page.activeGroup===index;onClicked:page.requestCategory(index)}
             }
         }
-        ScrollView {
-            id:resultsScroll;visible:searchField.text.trim().length>0;Layout.fillWidth:true;Layout.fillHeight:true;clip:true;contentWidth:availableWidth
+        SettingsScroller {
+            id:resultsScroll;visible:searchField.text.trim().length>0;Layout.fillWidth:true;Layout.fillHeight:true
+            contentHeight:resultsColumn.height
             Column {
+                id:resultsColumn
                 width:resultsScroll.availableWidth;spacing:4
                 Repeater {model:page.searchResults
                     ItemDelegate {
@@ -670,10 +695,10 @@ Item {
             running:page.visible&&!resultsScroll.visible&&groupCaches.itemAt(page.activeGroup)&&groupCaches.itemAt(page.activeGroup).status!==Loader.Ready
             visible:running;implicitWidth:30;implicitHeight:30
         }
-        ScrollView {
+        SettingsScroller {
             id:contentScroll;objectName:"settingsScroll";transform:Translate{id:categoryOffset}
-            visible:!resultsScroll.visible;Layout.fillWidth:true;Layout.fillHeight:true;clip:true;contentWidth:availableWidth
-            ScrollBar.vertical:ScrollBar{policy:ScrollBar.AsNeeded;contentItem:Rectangle{implicitWidth:5;radius:3;color:tokens.secondaryText;opacity:.45}}
+            visible:!resultsScroll.visible;Layout.fillWidth:true;Layout.fillHeight:true
+            contentHeight:contentColumn.height
             ColumnLayout {
                 id:contentColumn;width:contentScroll.availableWidth-12;spacing:10
                 Repeater {
