@@ -65,7 +65,7 @@ ApplicationWindow {
         const target=next===2?1:0
         if(!motion||!visible){drawerProgress=target;return}
         drawerProgress=from;pageMotion.from=from;pageMotion.to=target
-        pageMotion.duration=Math.max(80,Math.round(560*Math.abs(target-from)))
+        pageMotion.duration=Math.max(80,Math.round(720*Math.abs(target-from)))
         pageMotion.start()
     }
     function openSettings(group,section){
@@ -226,13 +226,16 @@ ApplicationWindow {
     Item {
         id:homeStage
         anchors.fill:parent
-        visible:root.page===0||root.stageProgress<.72
+        visible:root.page===0||root.stageProgress<.88
         layer.enabled:visible&&root.stageProgress>0&&GraphicsInfo.api!==GraphicsInfo.Software&&!root.highContrast
         layer.smooth:true
         layer.effect:MultiEffect {
             blurEnabled:true
             blurMax:32
-            blur:root.stage(0,.48)*.72
+            blur:{
+                const progress=root.stage(0,.86)
+                return progress*progress*(3-2*progress)*.72
+            }
             autoPaddingEnabled:false
         }
     ColumnLayout {

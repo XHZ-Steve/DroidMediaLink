@@ -31,10 +31,9 @@ Item {
         return stored==="auto"?Qt.rgba(accent.r,accent.g,accent.b,light?.12:.105):stored
     }
     readonly property color groupBorder: {
-        const stored=value("settings/groupBorder","auto")
-        return stored==="auto"?Qt.rgba(accent.r,accent.g,accent.b,light?.30:.24):stored
+        const stored=value("settings/groupBorder","#00000000")
+        return stored==="auto"?"transparent":stored
     }
-    readonly property color pinnedSurface:Qt.tint(tokens.elevated,Qt.rgba(groupFill.r,groupFill.g,groupFill.b,groupFill.a*.85))
     readonly property bool restartPending:controller?.restartPending===true
     function offerHint(button){
         if(!settingsHint)return
@@ -111,7 +110,7 @@ Item {
         [qsTr("Paired devices"),qsTr("Discovery and pairing"),qsTr("Connection and reconnection"),qsTr("Network and security")],
         [qsTr("Player selection"),qsTr("Playback controls"),qsTr("Windows SMTC"),qsTr("Volume control")],
         [qsTr("Lyric sources"),qsTr("Automatic matching"),qsTr("Main lyrics"),qsTr("Desktop lyrics"),qsTr("Animation and sync"),qsTr("Translation and romanization"),qsTr("Style presets")],
-        [qsTr("Theme and colors"),qsTr("Ambient background"),qsTr("Glass material"),qsTr("Fonts and motion")],
+        [qsTr("Theme and colors"),qsTr("Ambient background"),qsTr("Glass material"),qsTr("Fonts and motion"),qsTr("Settings groups")],
         [qsTr("Performance and rendering"),qsTr("Cache and data"),qsTr("Updates"),qsTr("Logs and diagnostics")]
     ]
     readonly property var groupKeywords: [
@@ -622,6 +621,35 @@ Item {
             FlatButton{text:qsTr("Restore lyric defaults");onClicked:{page.pendingReset={kind:"lyrics",scope:lyricResetScope.model[lyricResetScope.currentIndex].value};resetDialog.open()}}
         }
     }
+    component PinnedHeaderGlass: Loader {
+        id: pinnedGlass
+        required property real pinnedOffset
+        property real radius:12
+        anchors.fill:parent
+        active:page.visible&&pinnedOffset>0
+        sourceComponent: GlassMaterial {
+            sourceItem:page.materialSource
+            sourceRect:{
+                // Scrolling and sticky translation move the sample together.
+                const scroll=contentScroll.contentItem.contentY
+                const offset=pinnedGlass.pinnedOffset
+                const transition=categoryOffset.y+page.entranceOffset
+                return sourceItem?pinnedGlass.mapToItem(sourceItem,Qt.rect(0,0,width,height)):Qt.rect(0,0,0,0)
+            }
+            glassEnabled:page.groupGlass&&GraphicsInfo.api!==GraphicsInfo.Software
+            dark:!page.light;motion:false;rasterScale:page.rasterScale
+            backdropColor:tokens.base;tintColor:page.groupFill
+            fallbackColor:Qt.tint(tokens.elevated,page.groupFill)
+            cornerRadius:pinnedGlass.radius
+            configuration:({glassOpacity:page.groupFill.a,glassTintStrength:1,glassBlur:9,
+                glassRefraction:.24,glassDistortion:.42,glassDispersion:.035,
+                glassEdgeGlow:.08,glassShadow:0,quality:0})
+            Rectangle {
+                anchors.fill:parent;radius:pinnedGlass.radius;color:"transparent"
+                border.width:page.groupBorder.a>0?1:0;border.color:page.groupBorder
+            }
+        }
+    }
     component LyricSubgroup: ColumnLayout {
         id:subgroup
         required property int groupIndex
@@ -640,7 +668,7 @@ Item {
         Item {
           id:subgroupBar;Layout.fillWidth:true;implicitHeight:36;z:2
           transform:Translate{y:subgroup.pinnedOffset}
-          Rectangle {anchors.fill:parent;visible:subgroup.pinnedOffset>0;radius:10;color:page.pinnedSurface}
+          PinnedHeaderGlass {pinnedOffset:subgroup.pinnedOffset;radius:10}
           FlatButton {
             id:subgroupHeading;objectName:"subgroup-heading-"+subgroup.groupIndex+"/"+subgroup.sectionIndex+"/"+subgroup.subgroupData.key
             anchors.fill:parent;text:subgroup.subgroupData.label;implicitHeight:36
@@ -688,7 +716,7 @@ Item {
         Item {
           id:sectionBar;Layout.fillWidth:true;Layout.topMargin:5;implicitHeight:40;z:3
           transform:Translate{y:sectionBlock.pinnedOffset}
-          Rectangle {anchors.fill:parent;visible:sectionBlock.pinnedOffset>0;radius:12;color:page.pinnedSurface;border.width:1;border.color:page.groupBorder}
+          PinnedHeaderGlass {pinnedOffset:sectionBlock.pinnedOffset}
           RowLayout {
             anchors.fill:parent;anchors.leftMargin:6;anchors.rightMargin:6;spacing:2
             FlatButton {

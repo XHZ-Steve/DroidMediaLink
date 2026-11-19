@@ -2414,6 +2414,10 @@
         <translation>字体与动画</translation>
     </message>
     <message>
+        <source>Settings groups</source>
+        <translation>设置分组</translation>
+    </message>
+    <message>
         <location filename="../qml/SettingsPage.qml" line="56"/>
         <source>Performance and rendering</source>
         <translation>性能与渲染</translation>

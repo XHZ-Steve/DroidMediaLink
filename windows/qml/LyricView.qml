@@ -288,19 +288,22 @@ Item {
   }
   TapHandler {enabled:view.interactive&&!view.compact&&!view.untimed;gesturePolicy:TapHandler.DragThreshold;onTapped:{if(!timeline.moving&&!timeline.dragging){view.seekRequested(rowItem.row.time);view.recover()}}}
  }
- ListView {
-  id:timeline;objectName:"lyricTimeline";anchors.fill:parent
-  model:view.active?view.rows:null;spacing:Math.round(view.fontSize*view.lineSpacing);cacheBuffer:Math.max(0,height*.5)
+ // Size the actual effect quad to the overhang. An expanded sourceRect alone
+ // compresses that texture into the list width and moves the visible glyphs.
+ Item {
+  x:-view.inkOverhang;y:0;width:view.width+2*view.inkOverhang;height:view.height
   layer.enabled:view.edgeLayer
   layer.smooth:true
-  layer.sourceRect:Qt.rect(-view.inkOverhang,0,width+2*view.inkOverhang,height)
-  layer.textureSize:Qt.size(Math.ceil(layer.sourceRect.width*view.pixelDensity),Math.ceil(height*view.pixelDensity))
+  layer.textureSize:Qt.size(Math.ceil(width*view.pixelDensity),Math.ceil(height*view.pixelDensity))
   layer.effect:ShaderEffect {
    property var source
    property vector4d fading:Qt.vector4d(view.topFade/Math.max(1,view.height),view.bottomFade/Math.max(1,view.height),view.compact?0:view.option("fadeStrength",1),0)
    property vector4d focusWindow:Qt.vector4d(view.primaryRect.y/Math.max(1,view.height),(view.primaryRect.y+view.primaryRect.height)/Math.max(1,view.height),2/Math.max(1,view.height),view.originalFocus)
    fragmentShader:"qrc:/qt/qml/DroidMediaLink/shaders/lyricfocus.frag.qsb"
   }
+ ListView {
+  id:timeline;objectName:"lyricTimeline";x:view.inkOverhang;width:view.width;height:view.height
+  model:view.active?view.rows:null;spacing:Math.round(view.fontSize*view.lineSpacing);cacheBuffer:Math.max(0,height*.5)
   currentIndex:-1;highlight:null;highlightRangeMode:ListView.NoHighlightRange
   property bool userScrolling:false
   property bool positioned:false
@@ -353,6 +356,7 @@ Item {
   Timer{id:resumeFollow;interval:view.option("recoveryDelay",2400);onTriggered:view.recover()}
   ScrollBar.vertical:ScrollBar{visible:view.interactive&&!view.compact;policy:ScrollBar.AsNeeded;implicitWidth:4;background:Item{}
  contentItem:Rectangle{radius:2;color:view.inactiveColor;opacity:.25}}
+ }
  }
  Rectangle {
   id:browseIndicator

@@ -104,8 +104,8 @@ inline QVariantList descriptors(){
  S("home/windowBackgroundOpacity","Window background opacity",4,1,"number",1.,0,1,.01);
  S("theme/brand","Brand",4,0,"enum","spotify",0,1,1,options({"spotify","netease","qqmusic","kugou","youtube","apple"}));
  S("appearance/style","Software style",4,2,"enum","liquid",0,1,1,options({"standard","liquid"}));
- S("settings/groupFill","Settings group fill",4,2,"color","auto");
- S("settings/groupBorder","Settings group border",4,2,"color","auto");
+ S("settings/groupFill","Settings group fill",4,4,"color","auto");
+ S("settings/groupBorder","Settings group border",4,4,"color","#00000000");
  S("motion","Animations",4,3,"bool",true);
  const auto restartHelp=QCoreApplication::translate("Settings","Takes effect after restarting the app.");
  S("graphics/msaa","Multisample antialiasing",5,0,"enum",0,0,8,1,(QVariantList{

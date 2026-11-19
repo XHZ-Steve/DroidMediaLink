@@ -127,9 +127,14 @@ Item {
             compare(canvas.changingLayout,false);compare(canvas.transitionProgress,1)
         }
         function test_title_and_lyric_ink_share_left_edge(){
-            controller.setSetting("home/layout",2);controller.setSetting("home/layouts/2/alignment","left");wait(550)
+            controller.setSetting("home/layout",2);controller.setSetting("home/layouts/2/alignment","left")
+            controller.setSetting("lyrics/wordGlow",true);wait(550)
             const title=findChild(canvas,"trackTitle"),view=findChild(canvas,"expandedHomeLyrics"),timeline=findChild(view,"lyricTimeline")
             tryVerify(function(){return timeline.itemAtIndex(0)!==null})
+            verify(view.inkOverhang>0)
+            compare(timeline.parent.x,-view.inkOverhang)
+            compare(timeline.parent.width,view.width+2*view.inkOverhang)
+            compare(timeline.x,view.inkOverhang)
             const flow=findChild(timeline.itemAtIndex(0),"lyricWords")
             const glyph=flow.children.filter(function(item){return item.objectName==="lyricGlyph"})[0]
             verify(Math.abs(glyph.mapToItem(canvas,0,0).x-title.mapToItem(canvas,0,0).x)<1)
