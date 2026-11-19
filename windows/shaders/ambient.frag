@@ -29,18 +29,32 @@ float region(vec2 p,vec2 center,vec2 stretch,float radius) {
     float d2=dot(delta,delta)/max(.015,radius*radius);
     return exp(-d2/(1.+1.6*fluid.x));
 }
+vec2 lightCenter(float phase, float offset) {
+    float t=phase+offset;
+    // Spend longer at the ends of each sweep and accelerate through the middle.
+    float u=t-.24*sin(2.*t);
+    vec2 meander=vec2(sin(7.*t+.6),cos(5.*t+1.1))*.014;
+    return vec2(.5+.405*cos(u),.5+.29*sin(u)+.14*sin(3.*u))+meander;
+}
+vec2 separate(vec2 delta,vec2 aspect) {
+    float distance=length(delta*aspect);
+    return delta/max(distance,.001)*max(0.,.24-distance)*.5;
+}
 void main() {
     vec2 uv=qt_TexCoord0;
     float aspect=max(geometry.x,1.)/max(geometry.y,1.);
     vec2 metric=vec2(sqrt(aspect),inversesqrt(aspect));
     float radius=.42*atmosphere.y;
-    // phase advances in seconds * configured speed. At 2x the lobes now
-    // travel visibly in a few seconds; the default remains a slow drift.
-    float t=phase*.38;
-    vec2 drift=vec2(sin(t),sin(t*.73))*.14;
-    float a=region(uv,vec2(.20,.28)+drift,metric,radius*(1.+.10*sin(t*.63)));
-    float b=region(uv,vec2(.82,.73)+vec2(sin(t*.81),-sin(t*.67))*.16,metric,radius*.95);
-    float c=region(uv,vec2(.64,.20)+vec2(-sin(t*.91),sin(t*.57))*.18,metric,radius*.72)*(.52+.08*sin(t*.7));
+    float t=phase*.65;
+    vec2 p0=lightCenter(t,0.);
+    vec2 p1=lightCenter(t,2.0943951);
+    vec2 p2=lightCenter(t,4.1887902);
+    vec2 separationAspect=geometry.xy/max(1.,min(geometry.x,geometry.y));
+    vec2 d01=separate(p0-p1,separationAspect),d02=separate(p0-p2,separationAspect),d12=separate(p1-p2,separationAspect);
+    vec2 drift=(p0-vec2(.5))*.35;
+    float a=region(uv,clamp(p0+d01+d02,.06,.94),metric,radius*(1.+.10*sin(t)));
+    float b=region(uv,clamp(p1-d01+d12,.06,.94),metric,radius*.95);
+    float c=region(uv,clamp(p2-d02-d12,.06,.94),metric,radius*.72)*(.52+.08*sin(t));
     // Local colour ownership prevents opposite hues becoming a flat grey field.
     vec3 weights=pow(vec3(a,b,c),vec3(1.35));
     float total=weights.x+weights.y+weights.z;

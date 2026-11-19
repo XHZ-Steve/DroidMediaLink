@@ -162,7 +162,12 @@ class PassiveLinkService : Service() {
      "auth" -> {
       val clientId=payload.getString("clientId");val token=payload.getString("token")
       if(!store.authenticate(clientId,token)) { error(conn,"unauthorized");conn.close(1008,"unauthorized");return }
-      store.touch(clientId);authenticated[conn]=clientId;Hub.connected.value=authenticated.values.toSet();send(conn,"auth_result",JSONObject().put("authenticated",true));send(conn,"capabilities",JSONObject().put("features",JSONArray(listOf("volume_state","get_snapshot"))));sendMediaSnapshot(conn,Hub.media.value)
+      store.touch(clientId);authenticated[conn]=clientId;Hub.connected.value=authenticated.values.toSet();send(conn,"auth_result",JSONObject().put("authenticated",true));send(conn,"capabilities",JSONObject().put("features",JSONArray(listOf("volume_state","get_snapshot","fresh_snapshot"))))
+      handler.post {
+       if(authenticated[conn]!=clientId)return@post
+       val refresh=Hub.refreshMedia
+       if(refresh!=null)refresh() else sendMediaSnapshot(conn,Hub.media.value)
+      }
      }
      "capabilities" -> {
       val client=authenticated[conn]
@@ -188,7 +193,27 @@ class PassiveLinkService : Service() {
       handler.post {
        if(authenticated[conn]!=client || !store.read().has(client)) { error(conn,"unauthorized");return@post }
        val failure=Hub.control?.invoke(command,payload) ?: if(Hub.control==null) "no_session" else null
-       send(conn,"command_result",JSONObject().put("requestId",requestId).put("success",failure==null).apply { if(failure!=null)put("error",failure);if(command=="volume"){put("volume",Hub.media.value.optInt("volume"));put("maxVolume",Hub.media.value.optInt("maxVolume"))} })
+       fun respond(errorCode:String?) {
+        val state=Hub.media.value
+        send(conn,"command_result",JSONObject().put("requestId",requestId).put("success",errorCode==null).apply {
+         if(errorCode!=null)put("error",errorCode)
+         if(command=="volume"){put("volume",state.optInt("volume"));put("maxVolume",state.optInt("maxVolume"))}
+        })
+       }
+       if(command=="volume"&&failure==null){
+        val sessionId=Hub.media.value.optString("sessionId")
+        handler.postDelayed({
+         if(authenticated[conn]!=client)return@postDelayed
+         val state=Hub.media.value
+         val maximum=state.optInt("maxVolume")
+         val target=kotlin.math.round(payload.optDouble("volume",payload.optDouble("value"))*maximum).toInt()
+         respond(when{
+          state.optString("sessionId")!=sessionId -> "track_changed"
+          maximum<=0||state.optInt("volume")!=target -> "volume_not_applied"
+          else -> null
+         })
+        },450)
+       }else respond(failure)
       }
      }
      else -> error(conn,"unknown_type")

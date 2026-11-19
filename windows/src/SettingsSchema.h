@@ -48,10 +48,7 @@ inline QVariantList descriptors(){
  S("media/smtc","System media controls",2,2,"bool",true);
  S("info/volume","Phone volume",2,3,"readonly","");
  S("lyrics/online","Online lyrics",3,0,"bool",true);
- S("lyrics/phoneSource","Phone lyrics",3,0,"enum","prefer",0,1,1,QVariantList{QVariantMap{{"label",QCoreApplication::translate("Settings","Prefer phone lyrics")},{"value","prefer"}},QVariantMap{{"label",QCoreApplication::translate("Settings","Phone lyrics only")},{"value","only"}},QVariantMap{{"label",QCoreApplication::translate("Settings","Off")},{"value","off"}}},false,QCoreApplication::translate("Settings","Uses complete lyric text published by the player. Availability depends on the player; no private app files are read."));
  S("lyrics/providerPriority","Provider priority",3,0,"providerOrder","phone,netease,qq,kugou,lrclib");
- S("lyrics/preferredProvider","Preferred lyric source",3,0,"enum","auto",0,1,1,options({"auto"})+QVariantList{QVariantMap{{"label",QCoreApplication::translate("Settings","Phone lyrics")},{"value","phone"}}}+options({"netease","qq","kugou","lrclib"}));
- S("lyrics/preferCurrentApp","Prefer current player source",3,0,"bool",true);
  S("lyrics/crossSourceTranslation","Supplement translation from other sources",3,0,"bool",false);
  S("lyrics/matchStrategy","Matching strategy",3,1,"enum","default",0,1,1,QVariantList{QVariantMap{{"label",QCoreApplication::translate("Settings","Default")},{"value","default"}},QVariantMap{{"label",QCoreApplication::translate("Settings","strict")},{"value","strict"}},QVariantMap{{"label",QCoreApplication::translate("Settings","balanced")},{"value","balanced"}}});
  S("lyrics/providers/phone/enabled","Phone lyrics",3,0,"bool",true);
@@ -95,6 +92,9 @@ inline QVariantList descriptors(){
  S("lyrics/inactiveOpacity","Inactive lyric opacity",3,4,"number",.58,.1,.85,.05);
  S("light","Light appearance",4,0,"bool",false);
  S("theme/source","Theme source",4,0,"enum","auto",0,1,1,options({"auto","artwork","system","brand"}));
+ S("home/hideTitleSuffix","Hide title parentheses",4,0,"bool",false);
+ S("home/proportionalScaling","Scale interface with window",4,0,"bool",false);
+ S("home/windowBackgroundOpacity","Window background opacity",4,1,"number",1.,0,1,.01);
  S("theme/brand","Brand",4,0,"enum","spotify",0,1,1,options({"spotify","netease","qqmusic","kugou","youtube","apple"}));
  S("appearance/style","Software style",4,2,"enum","liquid",0,1,1,options({"standard","liquid"}));
  S("motion","Animations",4,3,"bool",true);

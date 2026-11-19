@@ -72,6 +72,7 @@ public:
  explicit Bridge(QObject *parent=nullptr);
  ~Bridge() override;
  QString status()const{return m_status;} bool online()const{return m_online;}
+ Q_INVOKABLE QString titleForSearch()const{return LyricProviders::baseTitle(title());}
  QString title()const{return m_media.value("title").toString();}
  QString artist()const{return m_media.value("artist").toString();}
  QString album()const{return m_media.value("album").toString();}

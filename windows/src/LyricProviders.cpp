@@ -42,11 +42,6 @@ QVariantList LyricProviders::descriptors()const{
   const auto status=m_status.value(id);for(auto it=status.cbegin();it!=status.cend();++it)row[it.key()]=it.value();result<<row;
  }return result;
 }
-QString LyricProviders::baseTitle(QString title){
- const QRegularExpression suffix(QStringLiteral("\\s*(?:\\([^()]*\\)|（[^（）]*）|\\[[^\\[\\]]*\\]|【[^【】]*】)\\s*$"));
- for(;;){const auto match=suffix.match(title);if(!match.hasMatch())break;title.truncate(match.capturedStart());}
- return title.trimmed();
-}
 double LyricProviders::defaultMatchScore(const LyricTrack &track,const LyricCandidate &candidate){
  const auto title=normalized(track.title),other=normalized(candidate.title);
  const bool exact=title==other;
@@ -85,7 +80,7 @@ void LyricProviders::get(QString provider,QUrl url,JsonDone done){
  if(std::any_of(m_replies.cbegin(),m_replies.cend(),[&provider](const auto &reply){return reply&&reply->property("lyricProvider")==provider;})){QTimer::singleShot(250,this,[this,provider,url,done,epoch]{if(epoch==m_epoch)get(provider,url,done);});return;}
  if(wait>0){if(wait>3000){done({}, {},"rate-limited");return;}QTimer::singleShot(int(wait),this,[this,provider,url,done,epoch]{if(epoch==m_epoch)get(provider,url,done);});return;}
  m_nextRequest[provider]=now+250;
- QNetworkRequest request(url);request.setTransferTimeout(8000);request.setRawHeader("User-Agent","DroidMediaLink/0.1.0 (https://github.com/XHZ-Steve/DroidMusicLink)");
+ QNetworkRequest request(url);request.setTransferTimeout(8000);request.setRawHeader("User-Agent","DroidMediaLink/0.1.0 (https://github.com/XHZ-Steve/DroidMediaLink)");
  if(provider=="netease")request.setRawHeader("Referer","https://music.163.com/");if(provider=="qq")request.setRawHeader("Referer","https://y.qq.com/");
  auto reply=m_network->get(request);reply->setProperty("lyricProvider",provider);m_replies<<reply;
  connect(reply,&QNetworkReply::downloadProgress,reply,[reply](qint64 received,qint64){if(received>2*1024*1024)reply->abort();});
@@ -107,6 +102,12 @@ void LyricProviders::search(QString provider,QString query,SearchDone done){
  if(provider=="kugou")url=queryUrl("https://mobiles.kugou.com/api/v3/search/song",{{"format","json"},{"keyword",query.left(240)},{"page","1"},{"pagesize","12"},{"showtype","1"}});
  get(provider,url,[this,provider,done](QJsonObject object,QJsonArray array,QString error){
   QList<LyricCandidate> result;if(!error.isEmpty()){done({},error);return;}
+  if(provider=="netease"&&object.value("code").toInt(200)!=200){
+   const auto message="NetEase API "+QString::number(object.value("code").toInt());
+   setStatus(provider,"error",message);
+   done({},message);
+   return;
+  }
   if(provider=="netease")array=object.value("result").toObject().value("songs").toArray();
   if(provider=="qq")array=object.value("data").toObject().value("song").toObject().value("list").toArray();
   if(provider=="kugou")array=object.value("data").toObject().value("info").toArray();

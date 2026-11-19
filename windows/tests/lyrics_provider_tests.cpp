@@ -9,6 +9,9 @@
 #include <QDebug>
 int main(int argc,char **argv){
  QCoreApplication app(argc,argv);
+ if(LyricProviders::baseTitle(QStringLiteral("Song (Live (2025)) （现场）"))!="Song"||
+    LyricProviders::baseTitle(QStringLiteral("(Home)"))!="(Home)"||
+    LyricProviders::baseTitle(QStringLiteral("Song (Part I) Continued"))!="Song (Part I) Continued")return 8;
  LyricTrack track{"Song (Live)","Artist","Album",{},180000};LyricCandidate candidate{"lrclib","1","Song","Artist","Album",180000,0,{}};
  if(LyricProviders::matchScore(track,candidate)>0)return 1;candidate.title=track.title;candidate.duration=210000;if(LyricProviders::matchScore(track,candidate)>0)return 2;
  candidate.duration=180000;if(LyricProviders::matchScore(track,candidate)<99)return 3;candidate.artist="Other Artist";if(LyricProviders::matchScore(track,candidate)>0)return 4;

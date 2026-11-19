@@ -181,13 +181,20 @@ Item {
         width:canvas.metadataGeometry.width;height:canvas.metadataGeometry.height
         implicitHeight:titleMeasure.implicitHeight+(artistLabel.visible?artistLabel.implicitHeight+7:0)+(sourceLabel.visible?sourceLabel.implicitHeight+7:0)+(connectButton.visible?43:0)
         Text {
-            id:titleMeasure;visible:false;width:Math.max(80,metadataSlot.width-2*Math.abs(canvas.layoutConfiguration.titleX));text:titleLabel.text
+            id:titleMeasure;visible:false;width:Math.max(80,metadataSlot.width-2*Math.abs(canvas.layoutConfiguration.titleX));text:titleLabel.displayTitle;textFormat:Text.PlainText
             font:titleLabel.font;wrapMode:Text.Wrap;maximumLineCount:2;renderType:Text.NativeRendering
         }
         Label {
-            id:titleLabel;objectName:"trackTitle";width:Math.min(implicitWidth,metadata.width);x:canvas.textX(titleLabel,"titleX");text:canvas.controller.title||qsTr("No media");textFormat:Text.PlainText
+            id:titleLabel;objectName:"trackTitle";width:Math.min(implicitWidth,metadata.width);x:canvas.textX(titleLabel,"titleX");readonly property string rawTitle:canvas.controller.title||qsTr("No media")
+            readonly property string baseTitle:{const title=rawTitle;return typeof canvas.controller.titleForSearch==="function" ? canvas.controller.titleForSearch() || title : title}
+            readonly property string suffix:rawTitle.trim().slice(baseTitle.length)
+            readonly property bool hideSuffix:{canvas.settingsRevision;return canvas.controller.setting("home/hideTitleSuffix",false)}
+            readonly property string displayTitle:hideSuffix?baseTitle:rawTitle
+            function escapeTitle(value){return value.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+            text:hideSuffix||!suffix?escapeTitle(displayTitle):escapeTitle(baseTitle)+'<font color="'+canvas.secondaryColor+'">'+escapeTitle(suffix)+'</font>'
+            textFormat:Text.StyledText;Accessible.name:displayTitle
             height:canvas.changingLayout?canvas.mix(canvas.fromGeometry.titleHeight,canvas.toGeometry.titleHeight):titleMeasure.implicitHeight
-            color:canvas.textColor;font.family:typography.resolvedFamily(text,tokens.displayFamily);font.weight:500
+            color:canvas.textColor;font.family:typography.resolvedFamily(displayTitle,tokens.displayFamily);font.weight:500
             font.pixelSize:Math.max(26,Math.min(32,canvas.width*.04))
             renderType:Text.NativeRendering;wrapMode:Text.Wrap;maximumLineCount:2;elide:Text.ElideRight
             horizontalAlignment:Text.AlignLeft

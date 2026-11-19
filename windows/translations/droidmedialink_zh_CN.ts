@@ -313,6 +313,7 @@
             <translation>歌词缓存已清除</translation>
         </message>
     <message><source>Preset limit reached</source><translation>预设数量已达上限</translation></message>
+    <message><source>Phone did not apply the volume change</source><translation>手机未能应用音量调整</translation></message>
 </context>
 <context>
     <name>CoverArtwork</name>
@@ -2157,6 +2158,9 @@
             <translation>原文与译文间距偏移</translation>
         </message>
     <message><source>Follow word timing when scrolling</source><translation>跟随逐字时间滚动</translation></message>
+    <message><source>Hide title parentheses</source><translation>隐藏标题括号及内容</translation></message>
+    <message><source>Scale interface with window</source><translation>随窗口等比缩放界面</translation></message>
+    <message><source>Window background opacity</source><translation>主窗口背景不透明度</translation></message>
 </context>
 <context>
     <name>SettingsPage</name>

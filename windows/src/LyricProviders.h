@@ -33,7 +33,25 @@ public:
  static QStringList ids();
  static double matchScore(const LyricTrack &track,const LyricCandidate &candidate,bool strict=true);
  static double defaultMatchScore(const LyricTrack &track,const LyricCandidate &candidate);
- static QString baseTitle(QString title);
+ static QString baseTitle(QString title){
+  title=title.trimmed();
+  const QString opens=QStringLiteral("(（[【");
+  const QString closes=QStringLiteral(")）]】");
+  while(!title.isEmpty()){
+   const int type=closes.indexOf(title.back());
+   if(type<0)break;
+   int depth=1;
+   qsizetype i=title.size()-1;
+   while(i>0&&depth>0){
+    const auto ch=title[--i];
+    if(ch==closes[type])++depth;
+    if(ch==opens[type])--depth;
+   }
+   if(depth||title.left(i).trimmed().isEmpty())break;
+   title=title.left(i).trimmed();
+  }
+  return title;
+ }
  static QString decodeLocal(QByteArray bytes);
 private:
  QNetworkAccessManager *m_network;quint64 m_epoch=0;

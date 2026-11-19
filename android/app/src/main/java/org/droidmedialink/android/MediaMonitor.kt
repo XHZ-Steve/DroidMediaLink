@@ -82,7 +82,7 @@ class MediaSessionTracker(private val context:Context) {
   val snapshot=Hub.media.value;val state=JSONObject();for(key in snapshot.keys())state.put(key,snapshot.get(key));for(name in listOf("volume","maxVolume","commands"))state.put(name,data.get(name))
   val playback=c.playbackState
   val speed=(playback?.playbackSpeed?:1f).takeIf { it.isFinite() }?:1f
-  val position=(playback?.position?:0L)+if(playback?.state==PlaybackState.STATE_PLAYING)((SystemClock.elapsedRealtime()-playback.lastPositionUpdateTime)*speed).toLong()else 0L
+  val position=(playback?.position?:0L)+if(playback?.state==PlaybackState.STATE_PLAYING && playback.lastPositionUpdateTime>0)((SystemClock.elapsedRealtime()-playback.lastPositionUpdateTime).coerceAtLeast(0)*speed).toLong()else 0L
   state.put("positionMs",position.coerceAtLeast(0)).put("speed",speed).put("state",if(playback?.state==PlaybackState.STATE_PLAYING)"playing" else if(playback?.state==PlaybackState.STATE_PAUSED)"paused" else "stopped")
   Hub.media.value=state;Hub.broadcastVolume?.invoke(data)
  }
@@ -196,7 +196,7 @@ class MediaSessionTracker(private val context:Context) {
  private fun publish() {
   val excluded = Hub.string("excluded").split(',').map { it.trim() }
   val eligible = controllers.keys.filter { it.packageName !in excluded }
-  current = eligible.firstOrNull { it.packageName == manual } ?: eligible.sortedByDescending { if(it.playbackState?.state == PlaybackState.STATE_PLAYING) 100 else if(it.packageName == Hub.string("preferred")) 10 else 0 }.firstOrNull()
+  current = eligible.firstOrNull { it.packageName == manual } ?: eligible.sortedByDescending { (if(it.playbackState?.state == PlaybackState.STATE_PLAYING) 100 else 0) + (if(!it.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE).isNullOrBlank()) 20 else 0) + (if(it.packageName == Hub.string("preferred")) 10 else 0) }.firstOrNull()
   Hub.sources.value = controllers.keys.map { it.packageName to appName(it) }
   val c=current
   if(c==null) {
@@ -218,7 +218,7 @@ class MediaSessionTracker(private val context:Context) {
   if(heartSupported)commands.add("favorite")
   val duration=(m?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L).coerceAtLeast(0)
   val speed=(s?.playbackSpeed ?: 1f).takeIf { it.isFinite() } ?: 1f
-  val position = (s?.position ?: 0L) + if(s?.state == PlaybackState.STATE_PLAYING) ((SystemClock.elapsedRealtime()-s.lastPositionUpdateTime)*speed).toLong() else 0L
+  val position = (s?.position ?: 0L) + if(s?.state == PlaybackState.STATE_PLAYING && s.lastPositionUpdateTime > 0) ((SystemClock.elapsedRealtime()-s.lastPositionUpdateTime).coerceAtLeast(0)*speed).toLong() else 0L
   val data=JSONObject().put("title",m?.getString(MediaMetadata.METADATA_KEY_TITLE).orEmpty()).put("artist",m?.getString(MediaMetadata.METADATA_KEY_ARTIST).orEmpty()).put("album",m?.getString(MediaMetadata.METADATA_KEY_ALBUM).orEmpty())
    .put("appName",appName(c)).put("packageName",c.packageName).put("sessionId",c.packageName+":"+c.sessionToken.hashCode())
    .put("durationMs",duration).put("positionMs",position.coerceAtLeast(0)).put("speed",speed)
@@ -262,7 +262,15 @@ class MediaSessionTracker(private val context:Context) {
     }
     "seek" -> { val value=payload.optLong("positionMs",payload.optLong("value",-1));val duration=Hub.media.value.optLong("durationMs");if(value<0 || duration>0 && value>duration) return "invalid_position";t.seekTo(value) }
     "volume" -> { val value=payload.optDouble("volume",payload.optDouble("value",-1.0));if(!ProtocolGuard.volumeValid(value)) return "invalid_volume";if(c.playbackInfo?.playbackType==MediaController.PlaybackInfo.PLAYBACK_TYPE_REMOTE)c.setVolumeTo(kotlin.math.round(value*(c.playbackInfo?.maxVolume?:0)).toInt(),0)
-     else audio.setStreamVolume(AudioManager.STREAM_MUSIC,kotlin.math.round(value*audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)).toInt(),0)
+     else {
+      val target=kotlin.math.round(value*audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)).toInt()
+      val before=audio.getStreamVolume(AudioManager.STREAM_MUSIC)
+      if(target!=before){
+       audio.setStreamVolume(AudioManager.STREAM_MUSIC,target,0)
+       // Use the active session's volume route if the stream API ignored the request.
+       if(audio.getStreamVolume(AudioManager.STREAM_MUSIC)==before)c.setVolumeTo(target,0)
+      }
+     }
      publishVolume(true);handler.removeCallbacks(volumeConfirm);handler.removeCallbacks(volumeSettle);handler.postDelayed(volumeConfirm,120);handler.postDelayed(volumeSettle,400) }
     else -> return "unsupported"
    };null

@@ -58,8 +58,6 @@ inline QJsonObject factoryDefaults(){return QJsonDocument::fromJson(R"defaults({
   "preferences/lyrics/longLine": "scroll",
   "preferences/lyrics/matchStrategy": "default",
   "preferences/lyrics/online": true,
-  "preferences/lyrics/phoneSource": "prefer",
-  "preferences/lyrics/preferredProvider": "netease",
   "preferences/lyrics/providerPriority": "phone,netease,kugou,qq,lrclib",
   "preferences/motion": true,
   "preferences/overlayTopmost": true,

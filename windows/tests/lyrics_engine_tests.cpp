@@ -26,6 +26,14 @@ class LyricsEngineTests {
 public:
  static int run(){
   QTemporaryDir files;QSettings saved;saved.setValue("preferences/lyrics/online",false);saved.setValue("preferences/lyrics/autoMatchMigration",true);saved.sync();Bridge bridge;
+  bridge.setSetting("home/windowBackgroundOpacity",.45);
+  if(bridge.setting("home/windowBackgroundOpacity",1.).toDouble()!=.45)return 122;
+  const auto savedOrder=bridge.setting("lyrics/providerPriority");
+  bridge.m_settings.setValue("preferences/lyrics/preferredProvider","netease");
+  bridge.m_settings.setValue("preferences/lyrics/phoneSource","only");
+  bridge.setSetting("lyrics/providerPriority","qq,phone,netease,kugou,lrclib");
+  if(bridge.lyricProviderOrder().mid(0,3)!=QStringList{"qq","phone","netease"})return 123;
+  bridge.setSetting("lyrics/providerPriority",savedOrder);
   const auto metadata=QJsonObject{{"title","TEST ONLY lyric engine A"},{"artist","TEST fixture"},{"album","TEST"},{"durationMs",0},{"state","paused"}};
   bridge.applyMedia(metadata);const auto unknownDurationKey=bridge.m_lyricKey;
   bridge.applyMedia({{"durationMs",30000}});if(unknownDurationKey==bridge.m_lyricKey||bridge.m_lyricKey!=bridge.lyricKey())return 1;
@@ -105,7 +113,7 @@ public:
   qInfo()<<"PASS: phone source automatically loads, supplements manual originals without overwriting translation, and clears on track change";
   if(QCoreApplication::arguments().contains("--live")){
    bridge.m_settings.setValue("preferences/lyrics/online",true);bridge.m_settings.setValue("preferences/lyrics/autoMatch",true);
-   bridge.m_settings.setValue("preferences/lyrics/preferredProvider","lrclib");
+   bridge.setSetting("lyrics/providerPriority","lrclib,phone,netease,qq,kugou");
    bridge.applyMedia({{"title","The Scientist"},{"artist","Coldplay"},{"album","A Rush of Blood to the Head"},{"durationMs",309000}});
    QEventLoop network;QObject::connect(&bridge,&Bridge::lyricsChanged,&network,[&]{if(!bridge.lyricsLoading())network.quit();});QTimer::singleShot(25000,&network,&QEventLoop::quit);if(bridge.lyrics().isEmpty())network.exec();
    if(bridge.lyrics().isEmpty()||bridge.lyricSource()!="lrclib")return 11;

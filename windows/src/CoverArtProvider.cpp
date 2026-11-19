@@ -1,3 +1,4 @@
+#include "LyricProviders.h"
 #include "CoverArtProvider.h"
 #include <QDateTime>
 #include <QCryptographicHash>
@@ -60,7 +61,7 @@ QString MusicBrainzCoverArtProvider::selectRelease(const CoverArtTrack &track,co
 void MusicBrainzCoverArtProvider::request(const CoverArtTrack &track,int resolution,Done done){
  cancel();failure="empty";lastError.clear();if(track.title.trimmed().isEmpty()||track.artist.trimmed().isEmpty()||track.album.trimmed().isEmpty()||track.duration<=0||track.title.size()>512||track.artist.size()>512||track.album.size()>512){failure="incomplete";done({},{},false);return;}const auto token=generation;const bool fresh=bypassCache;auto start=[this,track,resolution,done,token,fresh]{if(token!=generation)return;nextRequest=QDateTime::currentMSecsSinceEpoch()+1100;
   auto quote=[](QString text){text.replace('\\',"\\\\");text.replace('"',"\\\"");return '"'+text+'"';};
-  QUrl url("https://musicbrainz.org/ws/2/recording");QUrlQuery query;query.addQueryItem("query","recording:"+quote(track.title)+" AND artist:"+quote(track.artist.section('/',0,0))+" AND release:"+quote(track.album));query.addQueryItem("fmt","json");query.addQueryItem("limit","25");url.setQuery(query);
+  QUrl url("https://musicbrainz.org/ws/2/recording");QUrlQuery query;query.addQueryItem("query","recording:"+quote(LyricProviders::baseTitle(track.title))+" AND artist:"+quote(track.artist.section('/',0,0))+" AND release:"+quote(track.album));query.addQueryItem("fmt","json");query.addQueryItem("limit","25");url.setQuery(query);
   get(url,true,[this,track,resolution,done,fresh](QByteArray data){auto id=selectRelease(track,QJsonDocument::fromJson(data).object());if(id.isEmpty()){done({},{},false);return;}if(!fresh&&cachedImage&&cachedImage(id,resolution)){done({},id,true);return;}
    // CAA's front endpoint is the documented canonical cover, not an arbitrary
    // image URL from search results. All redirect hosts are checked as well.
@@ -143,7 +144,7 @@ QJsonObject CatalogCoverArtProvider::selectCandidate(QString source,const CoverA
 }
 void CatalogCoverArtProvider::request(const CoverArtTrack &track,int resolution,Done done){
  cancel();failure="empty";lastError.clear();if(track.title.isEmpty()||track.artist.isEmpty()||track.duration<=0||track.title.size()>512||track.artist.size()>512||track.album.size()>512){failure="incomplete";done({},{},false);return;}const auto token=generation;const bool refresh=bypassCache;
- auto start=[this,track,resolution,done,token,refresh]{if(token!=generation)return;nextRequest=QDateTime::currentMSecsSinceEpoch()+1100;const auto term=(track.title+" "+track.artist.section('/',0,0)).left(240);
+ auto start=[this,track,resolution,done,token,refresh]{if(token!=generation)return;nextRequest=QDateTime::currentMSecsSinceEpoch()+1100;const auto term=(LyricProviders::baseTitle(track.title)+" "+track.artist.section('/',0,0)).left(240);
   auto url=source=="netease"?queryUrl("https://music.163.com/api/search/get/web",{{"s",term},{"type","1"},{"offset","0"},{"limit","25"}}):queryUrl("https://c.y.qq.com/soso/fcgi-bin/client_search_cp",{{"w",term},{"p","1"},{"n","25"},{"cr","1"},{"format","json"},{"inCharset","utf8"},{"outCharset","utf-8"}});
   get(url,true,[this,track,resolution,done,refresh](QByteArray bytes){auto object=QJsonDocument::fromJson(bytes).object();const auto rows=source=="netease"?object.value("result").toObject().value("songs").toArray():object.value("data").toObject().value("song").toObject().value("list").toArray();auto row=selectCandidate(source,track,rows);if(row.isEmpty()){done({},{},false);return;}
    const auto album=row.value("album").toObject();auto id=source+":"+(source=="netease"?QString::number(album.value("id").toInteger()):row.value("albummid").toString());if(!refresh&&cachedImage&&cachedImage(id,resolution)){done({},id,true);return;}

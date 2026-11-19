@@ -11,7 +11,9 @@ ApplicationWindow {
     id: root
     width: 1120; height: 760; minimumWidth: 560; minimumHeight: 520
     visible: false; title: "DroidMediaLink"
-    color: bg
+    color: "transparent"
+    readonly property real backgroundOpacity:highContrast?1:pref("home/windowBackgroundOpacity",1)
+    readonly property real contentScale:pref("home/proportionalScaling",false)?Math.max(.64,Math.min(2,Math.min(width/1120,height/760))):1
     property bool highContrast:false
     property color bg: highContrast?nativePalette.window:design.base
     property color fg: highContrast?nativePalette.windowText:design.text
@@ -63,14 +65,14 @@ ApplicationWindow {
     function showTrayMenu(px, py) {
         if(trayWindow.visible) { trayWindow.hide(); return }
         trayWindow.x=px;trayWindow.y=py;
-        trayWindow.show();trayWindow.raise();trayWindow.requestActivate();trayFocusGuard.restart();
+        trayWindow.show();trayBackdrop.followPalette=true;trayWindow.raise();trayWindow.requestActivate();trayFocusGuard.restart();
     }
     onClosing: function(close) { if (root.pref("closeToTray", true)) { close.accepted=false; hide() } else Qt.quit() }
     FontLoader { id: lucide; source: "qrc:/icons/lucide.ttf" }
     SystemPalette{id:nativePalette;colorGroup:SystemPalette.Active}
     DesignTokens {id:design;light:root.light;motion:root.motion;accent:root.accent}
     property bool wide: width>=940 && width/height>1.2
-    property int canvasMargin: Math.round(Math.max(28,Math.min(64,width*.055)))
+    property int canvasMargin: Math.round(Math.max(28,Math.min(64,width/contentScale*.055)))
     component Action: Button {
         id:a
         property string iconName:""
@@ -188,10 +190,19 @@ ApplicationWindow {
         }
         Action { text: qsTr("Next"); iconName:"skip-forward"; Accessible.name: qsTr("Next"); enabled: supports("next"); onClicked: backend.command("next") }
     }
-    AmbientScene {id:ambient;anchors.fill:parent;visible:!root.highContrast}
+    Rectangle {anchors.fill:parent;color:root.bg;opacity:root.backgroundOpacity;visible:root.highContrast||GraphicsInfo.api===GraphicsInfo.Software}
+    AmbientScene {id:ambient;anchors.fill:parent;visible:!root.highContrast;opacity:root.backgroundOpacity}
     ColumnLayout {
         id:canvasLayout
-        anchors.fill:parent;anchors.leftMargin:root.canvasMargin;anchors.rightMargin:root.canvasMargin;anchors.topMargin:root.page===0?Math.max(40,root.canvasMargin):48;anchors.bottomMargin:root.page===0?Math.max(28,root.canvasMargin*.65):32;spacing:28
+        readonly property real topInset:root.page===0?Math.max(40,root.canvasMargin):48
+        readonly property real bottomInset:root.page===0?Math.max(28,root.canvasMargin*.65):32
+        x:root.canvasMargin*root.contentScale
+        y:topInset*root.contentScale
+        width:root.width/root.contentScale-2*root.canvasMargin
+        height:root.height/root.contentScale-topInset-bottomInset
+        scale:root.contentScale
+        transformOrigin:Item.TopLeft
+        spacing:28
         StackLayout {
             id:pageStack;transform:Translate{id:pageOffset}
             enabled:!pageMotion.running
@@ -201,7 +212,7 @@ ApplicationWindow {
                 light:root.light;motion:root.motion;lyricsEnabled:root.showLyrics
                 textColor:root.fg;secondaryColor:root.muted;accent:root.accent
                 onConnectRequested:root.openSettings(1,0)
-                onMatchRequested:{query.text=backend.title+" "+backend.artist;matchDialog.open()}
+                onMatchRequested:{query.text=backend.titleForSearch()+" "+backend.artist;matchDialog.open()}
                 onSeekRequested:function(position){backend.command("seek",position)}
             }
             SettingsPage {
@@ -210,7 +221,7 @@ ApplicationWindow {
                 onDesktopLyricsRequested:desktop.toggleRequested()
                 onFloatingRequested:floating.visible=!floating.visible
                 onImportLyricsRequested:lyricFile.open()
-                onMatchLyricsRequested:{query.text=backend.title+" "+backend.artist;matchDialog.open()}
+                onMatchLyricsRequested:{query.text=backend.titleForSearch()+" "+backend.artist;matchDialog.open()}
                 onSearchDevicesRequested:{discovery.open();backend.discover()}
                 onForgetDeviceRequested:function(url){root.selectedDeviceUrl=url;revoke.open()}
                 onActionRequested:function(key){if(key==="editDesktopLyrics"){desktop.editRequested()}}
@@ -327,10 +338,28 @@ ApplicationWindow {
     }
     Window {
         id:trayWindow;objectName:"tray";width:320;height:326;visible:false;color:"transparent";flags:Qt.Tool|Qt.FramelessWindowHint|Qt.WindowStaysOnTopHint;transientParent:null
-        onVisibleChanged:backend.setUiVisible((root.visible&&root.visibility!==Window.Minimized) || desktop.visible || floating.visible || trayWindow.visible)
+        onVisibleChanged:{if(!visible)trayBackdrop.holdPalette();backend.setUiVisible((root.visible&&root.visibility!==Window.Minimized) || desktop.visible || floating.visible || trayWindow.visible)}
         onActiveChanged:if(visible&&!active)trayFocusGuard.restart()
         Shortcut{sequence:"Escape";enabled:trayWindow.visible;onActivated:trayWindow.hide()}
-        AmbientScene{id:trayBackdrop;anchors.fill:parent;visible:false}
+        AmbientScene {
+            id:trayBackdrop;anchors.fill:parent;visible:false
+            property bool followPalette:true
+            property color heldPrimary:backend.ambientPrimary
+            property color heldSecondary:backend.ambientSecondary
+            property color heldAccent:backend.ambientAccent
+            property color heldDeep:backend.ambientDeep
+            property real heldMonochrome:backend.ambientMonochromeStrength
+            primary:followPalette?backend.ambientPrimary:heldPrimary
+            secondary:followPalette?backend.ambientSecondary:heldSecondary
+            accent:followPalette?backend.ambientAccent:heldAccent
+            deep:followPalette?backend.ambientDeep:heldDeep
+            monochromeStrength:followPalette?backend.ambientMonochromeStrength:heldMonochrome
+            active:trayWindow.visible
+            function holdPalette(){
+                heldPrimary=primaryColor;heldSecondary=secondaryColor;heldAccent=accentColor;heldDeep=baseColor
+                heldMonochrome=monochromeAmount;followPalette=false
+            }
+        }
         GlassMaterial {configuration:root.material("popup");motion:root.motion;anchors.fill:parent;anchors.margins:1;sourceItem:trayBackdrop;glassEnabled:root.liquidStyle;cornerRadius:design.trayRadius;dark:!root.light;active:trayWindow.visible;backdropColor:root.bg;tintColor:design.elevated;tintStrength:root.light?.10+root.glass*.44:.04+root.glass*.25;fallbackColor:design.elevated
             ColumnLayout {anchors.fill:parent;anchors.margins:14;spacing:6
                 Caption{text:backend.status;Layout.fillWidth:true;elide:Text.ElideRight}
@@ -404,7 +433,7 @@ ApplicationWindow {
                 id:volumeSlider;Layout.fillHeight:true;Layout.alignment:Qt.AlignHCenter;implicitWidth:36;orientation:Qt.Vertical
                 from:0;to:1;value:backend.volumePending?backend.requestedVolume:backend.volume;enabled:root.supports("volume")&&backend.volumeKnown;wheelEnabled:true;Accessible.name:qsTr("Phone volume")
                 onMoved:{volumePopup.requestedVolume=value;if(!volumeSend.running)volumeSend.start()}
-                onPressedChanged:if(pressed)volumePopup.requestedVolume=value;else{volumeSend.stop();if(backend.volumeKnown)backend.command("volume",volumePopup.requestedVolume);value=Qt.binding(function(){return backend.volumePending?backend.requestedVolume:backend.volume});volumeDismiss.restart()}
+                onPressedChanged:if(pressed)volumePopup.requestedVolume=value;else{if(volumeSend.running&&backend.volumeKnown)backend.command("volume",volumePopup.requestedVolume);volumeSend.stop();value=Qt.binding(function(){return backend.volumePending?backend.requestedVolume:backend.volume});volumeDismiss.restart()}
                 background:Rectangle{x:volumeSlider.leftPadding+(volumeSlider.availableWidth-width)/2;y:volumeSlider.topPadding;width:4;implicitHeight:112;height:volumeSlider.availableHeight;radius:2;color:root.light?"#24303b60":"#30e0e5ff"
                     Rectangle{x:0;y:volumeSlider.visualPosition*parent.height;width:4;height:Math.max(0,parent.height-y);radius:2;color:root.accent}
                 }

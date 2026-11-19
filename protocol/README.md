@@ -60,14 +60,16 @@ not authorize media control and is subject to the connection's message limits.
 
 `volume_state` carries actual `volume`, `maxVolume`, and updated `commands`
 without repeating the cover or an old playback-position anchor. A volume
-`command_result` also includes the read-back volume fields; delayed device
-changes follow as `volume_state` events.
+`command_result` also includes the read-back volume fields. Current Android builds
+verify the settled value and report `volume_not_applied` when it differs from the requested value.
 
 After authentication the phone advertises `volume_state` and `get_snapshot` in
 a `capabilities` payload's `features` array. The PC responds with its supported
 features. Volume deltas are used only for peers that advertise support; older
 PCs receive full snapshots with a fresh playback anchor. Cover snapshot retries
-are requested only when the phone advertises `get_snapshot`.
+are requested only when the phone advertises `get_snapshot`. Phones advertising
+`fresh_snapshot` read the active session before sending the first snapshot. For
+older peers that support `get_snapshot`, the PC requests one refresh on connection.
 
 ## Optional player-owned favorites and lyrics
 
