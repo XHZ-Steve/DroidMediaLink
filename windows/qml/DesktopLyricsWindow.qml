@@ -56,7 +56,7 @@ Window {
   sourceComponent:LyricView {
    controller:window.controller;settingsRevision:window.settingsRevision;settingsPrefix:"desktopLyrics";compact:window.pref("desktopLyrics/mode","auto")==="single"
    compactLines:1;interactive:false;centerCurrentText:true;configuration:({focus:.5})
-   textColor:"#fff8f5";inactiveColor:"#bdc5d5";centered:true;motion:window.pref("motion",true)
+   textColor:"#fff8f5";inactiveColor:"#bdc5d5";centered:true;motion:window.pref("motion",true);light:window.pref("light",false)
    onSeekRequested:function(position){window.controller.command("seek",position)}
   }
  }

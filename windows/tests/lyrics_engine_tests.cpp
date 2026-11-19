@@ -185,8 +185,21 @@ public:
    style.applyAppearancePreset("TEST renamed");if(style.appearanceConfig("popup")["glassBlur"].toDouble()!=.7)return 117;
    if(style.saveAppearancePreset("balanced")||style.saveAppearancePreset(QString()))return 118;
    for(int i=0;i<49;i++)if(!style.saveAppearancePreset("TEST limit "+QString::number(i)))return 119;
-   if(style.saveAppearancePreset("TEST overflow")||style.appearancePresets().size()!=54)return 120;
-   style.importSettings(path);if(style.appearancePresets().size()!=54)return 121;
+   if(style.saveAppearancePreset("TEST overflow")||style.appearancePresets().size()!=55)return 120;
+   style.importSettings(path);if(style.appearancePresets().size()!=55)return 121;
+   const QStringList expected{"dark-balanced","dark-bright","dark-immersive","dark-cinema","light-soft"};
+   const auto presets=style.appearancePresets();
+   for(qsizetype i=0;i<expected.size();++i){
+    const auto row=presets[i].toMap();
+    if(row["name"]!=expected[i]||!row["builtIn"].toBool())return 128;
+   }
+   style.applyAppearancePreset("dark-cinema");
+   if(style.setting("light").toBool()||style.appearanceConfig("background")["backgroundStrength"].toDouble()!=.1||!style.appearanceInherited("popup"))return 129;
+   style.applyAppearancePreset("light-soft");
+   if(!style.setting("light").toBool()||style.appearanceConfig("global")["glassRadius"].toInt()!=24)return 130;
+   style.setSetting("home/artworkRadius",42);style.setSetting("light",false);
+   style.exportSettings(path);style.applyAppearancePreset("dark-balanced");style.importSettings(path);
+   if(style.setting("home/artworkRadius").toInt()!=42||style.setting("light").toBool())return 131;
   }
   qInfo()<<"PASS: deferred cover metadata, late phone dimensions, and independent non-destructive cover diagnostics";
   return 0;

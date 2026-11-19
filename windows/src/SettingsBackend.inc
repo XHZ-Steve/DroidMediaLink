@@ -1,5 +1,6 @@
 // Included once by Bridge.cpp; keeps the validated preference surface separate
 // from media transport and the asynchronous lyric engine.
+#include "AppearancePresets.h"
 QVariantList Bridge::settingsCatalog()const{return SettingsSchema::descriptors();}
 QVariantList Bridge::appearanceDescriptors()const{return AppearanceConfig::descriptors();}
 bool Bridge::appearanceInherited(QString scope)const{return scope!="global"&&m_settings.value("appearance/"+scope+"/inherit",true).toBool();}
@@ -105,7 +106,9 @@ void Bridge::resetAppearanceValue(QString scope,QString key){if(!QStringList{"gl
 
 namespace {
 QString appearancePresetKey(const QString &name){return "appearancePresets/custom/"+QString::fromLatin1(name.toUtf8().toBase64(QByteArray::Base64UrlEncoding|QByteArray::OmitTrailingEquals));}
-bool builtinAppearancePreset(const QString &name){return QStringList{"clear","balanced","vivid","optical"}.contains(name);}
+bool legacyAppearancePreset(const QString &name){return QStringList{"clear","balanced","vivid","optical"}.contains(name);}
+bool builtinAppearancePreset(const QString &name){return legacyAppearancePreset(name)||!AppearancePresets::configuration(name).isEmpty();}
+constexpr int appearancePresetLimit=50+int(sizeof(AppearancePresets::entries)/sizeof(AppearancePresets::Entry));
 QVariantMap validatedAppearanceStyle(const QVariantMap &input){
  QVariantMap materials,preferences;const auto source=input.value("materials").toMap();
  for(auto it=source.cbegin();it!=source.cend();++it){const auto parts=it.key().split('/');if(parts.size()!=2||!QStringList{"global","background","dock","popup","floating","desktop"}.contains(parts[0]))continue;QVariant normalized;if(parts[1]=="inherit"&&parts[0]!="global"&&it.value().metaType()==QMetaType::fromType<bool>())materials[it.key()]=it.value();else if(AppearanceConfig::validate(parts[1],it.value(),&normalized))materials[it.key()]=normalized;}
@@ -114,21 +117,24 @@ QVariantMap validatedAppearanceStyle(const QVariantMap &input){
 }
 }
 QVariantList Bridge::appearancePresets()const{
- QVariantList rows;for(const auto &name:QStringList{"clear","balanced","vivid","optical"}){const auto label=name=="clear"?"Clear":name=="balanced"?"Balanced":name=="vivid"?"Vivid":"Optical";rows<<QVariantMap{{"name",name},{"label",QCoreApplication::translate("SettingsPage",label)},{"builtIn",true}};}
+ QVariantList rows;for(const auto &entry:AppearancePresets::entries)
+  rows<<QVariantMap{{"name",QString::fromLatin1(entry.id)},{"label",QCoreApplication::translate("SettingsPage",entry.label)},{"builtIn",true}};
  for(const auto &key:m_settings.allKeys())if(key.startsWith("appearancePresets/custom/")){const auto preset=m_settings.value(key).toMap();if(validLyricPresetName(preset["name"].toString()))rows<<QVariantMap{{"name",preset["name"]},{"label",preset["name"]},{"builtIn",false}};}
  return rows;
 }
 bool Bridge::saveAppearancePreset(QString name){
  if(!validLyricPresetName(name)||builtinAppearancePreset(name))return false;
- if(appearancePresets().size()>=54&&!m_settings.contains(appearancePresetKey(name))){emit notification(tr("Preset limit reached"));return false;}
+ if(appearancePresets().size()>=appearancePresetLimit&&!m_settings.contains(appearancePresetKey(name))){emit notification(tr("Preset limit reached"));return false;}
  QVariantMap materials,preferences;for(const auto &scope:QStringList{"global","background","dock","popup","floating","desktop"}){const auto config=appearanceConfig(scope);for(auto it=config.cbegin();it!=config.cend();++it)materials[scope+"/"+it.key()]=it.value();if(scope!="global")materials[scope+"/inherit"]=appearanceInherited(scope);}
  for(const auto &entry:SettingsSchema::descriptors()){const auto row=entry.toMap();if(row["group"].toInt()==4&&row["type"]!="action"&&row["type"]!="readonly")preferences[row["key"].toString()]=setting(row["key"].toString(),row["defaultValue"]);}
  m_settings.setValue(appearancePresetKey(name),QVariantMap{{"name",name},{"materials",materials},{"preferences",preferences}});emit settingsChanged();return true;
 }
 void Bridge::applyAppearancePreset(QString name){
- if(builtinAppearancePreset(name)){m_settings.remove("appearance/global");m_settings.setValue("appearance/preset",name);emit settingsChanged();return;}
- const auto style=validatedAppearanceStyle(m_settings.value(appearancePresetKey(name)).toMap());if(style.isEmpty())return;
- m_settings.remove("appearance");m_settings.setValue("appearance/preset","balanced");const auto materials=style["materials"].toMap(),preferences=style["preferences"].toMap();
+ if(legacyAppearancePreset(name)){m_settings.remove("appearance/global");m_settings.setValue("appearance/preset",name);emit settingsChanged();return;}
+ const auto builtin=AppearancePresets::configuration(name);
+ const auto style=validatedAppearanceStyle(builtin.isEmpty()?m_settings.value(appearancePresetKey(name)).toMap():builtin);
+ if(style.isEmpty())return;
+ m_settings.remove("appearance");m_settings.setValue("appearance/preset",builtin.isEmpty()?QStringLiteral("balanced"):name);const auto materials=style["materials"].toMap(),preferences=style["preferences"].toMap();
  for(auto it=materials.cbegin();it!=materials.cend();++it)m_settings.setValue("appearance/"+it.key(),it.value());for(auto it=preferences.cbegin();it!=preferences.cend();++it)m_settings.setValue("preferences/"+it.key(),it.value());applyTheme();emit settingsChanged();
 }
 void Bridge::renameAppearancePreset(QString oldName,QString newName){

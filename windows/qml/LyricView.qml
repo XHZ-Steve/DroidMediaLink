@@ -7,6 +7,7 @@ Item {
  required property var controller
  property int settingsRevision:0
  property real rasterScale:1
+ property bool light:false
  readonly property real pixelDensity:Screen.devicePixelRatio*rasterScale
  property string settingsPrefix:compact?"desktopLyrics":"lyrics"
  readonly property bool desktop:settingsPrefix==="desktopLyrics"
@@ -55,7 +56,14 @@ Item {
  property real translationGap:desktop?6+option("groupSpacing",10):option("translationSpacing",6)
  Behavior on translationGap{enabled:view.motion&&view.active;NumberAnimation{duration:180;easing.type:Easing.InOutCubic}}
  Behavior on fontSize{enabled:view.motion&&view.active;NumberAnimation{duration:180;easing.type:Easing.InOutCubic}}
- readonly property real inkPadding:Math.ceil(Math.max(5,outlineWidth+2,shadow?option("shadowBlur",6)+Math.abs(option("shadowOffset",2)):0,option("glow",false)||option("wordGlow",false)?option("glowRadius",8):0))
+ readonly property color automaticGlowColor:light?"black":"white"
+ readonly property real wordGlowRadius:option("wordGlowRadius",10)
+ readonly property real wordGlowOpacity:option("wordGlowOpacity",.75)
+ readonly property color wordGlowColor:colorOption("wordGlowColor",automaticGlowColor)
+ readonly property real inkPadding:Math.ceil(Math.max(5,outlineWidth+2,
+  shadow?option("shadowBlur",6)+Math.abs(option("shadowOffset",2)):0,
+  option("glow",false)?option("glowRadius",8):0,
+  option("wordGlow",false)?wordGlowRadius:0))
  readonly property int rendering:option("rendering","curve")==="native"?Text.NativeRendering:option("rendering","curve")==="qt"?Text.QtRendering:Text.CurveRendering
  readonly property var rows:controller?controller.lyrics:[]
  readonly property int line:controller&&rows.length?Math.max(0,controller.currentLine):-1
@@ -223,7 +231,7 @@ Item {
      scale:rowItem.visualScale;transformOrigin:view.flushAlignment||rowItem.scrolling?Item.TopLeft:view.alignment==="center"?Item.Center:view.alignment==="right"?Item.Right:Item.Left
      outlineWidth:rowItem.selected&&width<=8192?view.outlineWidth:0;outlineColor:view.outlineColor
      shadow:rowItem.selected&&view.shadow&&width<=8192;shadowBlur:view.option("shadowBlur",6);shadowOffset:view.option("shadowOffset",2);shadowColor:view.option("shadowColor","#80000000")
-     glow:rowItem.selected&&view.option("glow",false)&&width<=8192;glowRadius:view.option("glowRadius",8);glowOpacity:view.option("glowOpacity",.2);glowColor:view.option("glowColor","#d4e7ff")
+     glow:rowItem.selected&&view.option("glow",false)&&width<=8192;glowRadius:view.option("glowRadius",8);glowOpacity:view.option("glowOpacity",.2);glowColor:view.colorOption("glowColor",view.automaticGlowColor)
      Behavior on scale {enabled:view.active&&view.motion&&view.option("scaleAnimation",true);NumberAnimation{duration:view.option("scaleDuration",280);easing.type:Easing.OutCubic}}
      Flow {
       id:words;objectName:"lyricWords";onPositioningComplete:rowItem.measureLineEdges();x:view.inkPadding;y:view.inkPadding;width:view.longLine==="scroll"?100000:rowItem.sourceWidth
@@ -233,8 +241,10 @@ Item {
      }
      LyricInk {
       pixelDensity:view.pixelDensity
+      objectName:"wordGlow-"+rowItem.index
       x:0;y:0;width:primary.width;height:primary.height;visible:rowItem.selected&&!view.untimed
-      glow:view.option("wordGlow",false)&&width<=8192;glowRadius:view.option("glowRadius",8);glowOpacity:view.option("glowOpacity",.2);glowColor:view.option("glowColor","#d4e7ff")
+      glow:view.option("wordGlow",false)&&rowItem.wordTimed&&view.highlightMode!=="line"&&width<=8192
+      glowRadius:view.wordGlowRadius;glowOpacity:view.wordGlowOpacity;glowColor:view.wordGlowColor
       Flow {x:view.inkPadding;y:view.inkPadding;width:view.longLine==="scroll"?100000:rowItem.sourceWidth
        Repeater {model:rowItem.chunks
         Glyph {required property var modelData;lineShift:view.longLine==="wrap"?(rowItem.sourceWidth-(rowItem.wrappedLineEdges[String(Math.round(y))]||rowItem.sourceWidth))*view.alignmentPosition:0;value:modelData.text||"";limit:rowItem.sourceWidth;face:rowItem.face;metricsFace:rowItem.measureFace;highlight:true;inkColor:view.colorOption("sungColor",view.colorOption("color",view.textColor))

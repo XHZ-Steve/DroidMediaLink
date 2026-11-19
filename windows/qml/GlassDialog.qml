@@ -13,6 +13,9 @@ Dialog {
     property color foreground: light ? "#202431" : "#f5f5fa"
     property color surface: light ? "#edf0f6" : "#202532"
     property color accent: "#b5c9ee"
+    readonly property real panelRadius: Math.max(0,configuration.glassRadius ?? 24)
+    readonly property real footerInset: Math.max(20,panelRadius/2)
+    readonly property real footerBottomInset: Math.max(14,Math.ceil(panelRadius*.3))
     padding: 24
     spacing: 20
     modal: true
@@ -25,7 +28,8 @@ Dialog {
     }
     footer: DialogButtonBox {
         standardButtons: control.standardButtons
-        padding: 16; spacing: 8; alignment: Qt.AlignRight
+        topPadding: 2; leftPadding: control.footerInset; rightPadding: control.footerInset
+        bottomPadding: control.footerBottomInset; spacing: 8; alignment: Qt.AlignRight
         delegate: Button {
             id: action
             implicitWidth: Math.max(88,implicitContentWidth+32); implicitHeight: 40

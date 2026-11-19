@@ -177,6 +177,7 @@ Item {
         width:canvas.coverGeometry.width;height:canvas.coverGeometry.height
         x:canvas.coverGeometry.x;y:canvas.coverGeometry.y
         source:canvas.controller.artwork;motion:canvas.motion&&canvas.active;transitionDuration:Math.min(240,tokens.change)
+        rasterScale:canvas.rasterScale;cornerRadius:{canvas.settingsRevision;return canvas.controller.setting("home/artworkRadius",0)}
         ambientColor:canvas.controller.ambientPrimary||canvas.accent
         onActivated:canvas.nextLayout()
         actionText:qsTr("Switch layout")
@@ -247,7 +248,7 @@ Item {
             y:homeLyrics.returning&&canvas.changingLayout?homeLyrics.primaryY-primaryRect.y*scale:0
             controller:canvas.controller;settingsRevision:canvas.settingsRevision;settingsPrefix:"lyrics";flushAlignment:true;alignmentAnimation:false
             alignmentPosition:(1-canvas.textAlignment)/2
-            compact:false;originalFocus:canvas.lyricFocus;rasterScale:canvas.rasterScale
+            compact:false;originalFocus:canvas.lyricFocus;rasterScale:canvas.rasterScale;light:canvas.light
             opacity:canvas.contentReveal*(homeLyrics.returning&&canvas.changingLayout?1-canvas.blendIn(canvas.transitionProgress/.22):homeLyrics.expansion);visible:opacity>.001||homeLyrics.returning
             transformOrigin:Item.TopLeft
             scale:homeLyrics.sizeRatio+(1-homeLyrics.sizeRatio)*homeLyrics.expansion
@@ -264,7 +265,7 @@ Item {
             controller:canvas.controller;settingsRevision:canvas.settingsRevision;settingsPrefix:"lyrics";flushAlignment:true;alignmentAnimation:false
             alignmentPosition:homeLyrics.returning?(1-canvas.targetTextAlignment)/2:(1-canvas.textAlignment)/2
             clockEnabled:opacity>.001;motion:canvas.motion&&!canvas.changingLayout&&opacity>.001
-            compact:true;compactLines:1;rasterScale:canvas.rasterScale;opacity:canvas.contentReveal*(homeLyrics.returning?canvas.blendIn((canvas.transitionProgress-.72)/.28):1-homeLyrics.expansion);visible:canvas.displayingLyrics
+            compact:true;compactLines:1;rasterScale:canvas.rasterScale;light:canvas.light;opacity:canvas.contentReveal*(homeLyrics.returning?canvas.blendIn((canvas.transitionProgress-.72)/.28):1-homeLyrics.expansion);visible:canvas.displayingLyrics
             transformOrigin:Item.TopLeft
             scale:1+(1/homeLyrics.sizeRatio-1)*homeLyrics.expansion
             configuration:({fontSize:canvas.controller.setting("lyrics/fontSize",28)*.85,activeWeight:canvas.controller.setting("lyrics/activeWeight",500),longLine:canvas.controller.setting("lyrics/longLine","wrap")==="scroll"?"scroll":"elide",alignment:canvas.layoutAlignment,translation:false,romanization:false,autoScroll:true})

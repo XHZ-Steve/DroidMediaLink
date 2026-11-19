@@ -12,7 +12,7 @@ Item {
  property real glowRadius:8
  property real glowOpacity:.2
  property color glowColor:"#d4e7ff"
- layer.enabled:visible&&(outlineWidth>0||shadow||glow)
+ layer.enabled:visible&&GraphicsInfo.api!==GraphicsInfo.Software&&(outlineWidth>0||shadow||glow&&glowOpacity>0&&glowRadius>0&&glowColor.a>0)
  layer.smooth:true
  layer.textureSize:Qt.size(Math.min(8192,Math.ceil(width*pixelDensity)),Math.ceil(height*pixelDensity))
  layer.effect:ShaderEffect {
@@ -24,7 +24,7 @@ Item {
   property real shadeOffset:ink.shadow?ink.shadowOffset:0
   property vector4d shadeColor:Qt.vector4d(ink.shadowColor.r,ink.shadowColor.g,ink.shadowColor.b,ink.shadow?ink.shadowColor.a:0)
   property real halo:ink.glow?ink.glowRadius:0
-  property vector4d haloColor:Qt.vector4d(ink.glowColor.r,ink.glowColor.g,ink.glowColor.b,ink.glow?ink.glowOpacity:0)
+  property vector4d haloColor:Qt.vector4d(ink.glowColor.r,ink.glowColor.g,ink.glowColor.b,ink.glow&&ink.glowRadius>0?ink.glowOpacity*ink.glowColor.a:0)
   fragmentShader:"qrc:/qt/qml/DroidMediaLink/shaders/lyricink.frag.qsb"
  }
 }

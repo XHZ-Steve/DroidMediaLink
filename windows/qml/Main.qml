@@ -51,11 +51,16 @@ ApplicationWindow {
     function changePage(next){
         pendingPage=next
         if(next===page&&!pageMotion.running)return
+        if(page===2&&next!==2)settingsPage.rememberPosition()
         pageMotion.stop()
         if(!motion||!visible){page=next;pageStack.opacity=1;pageOffset.y=0;return}
         pageMotion.start()
     }
-    function openSettings(group,section){settingsPage.prepare(group===undefined?0:group);root.changePage(2);settingsPage.navigate(group===undefined?0:group,section===undefined?0:section)}
+    function openSettings(group,section){
+        if(group===undefined)settingsPage.prepare(settingsPage.activeGroup)
+        else {settingsPage.prepare(group);settingsPage.navigate(group,section===undefined?0:section)}
+        root.changePage(2)
+    }
     onPageChanged:if(page===1)openSettings(1,0)
     function save(key, value) { backend.setSetting(key, value) }
     function time(ms) { var s = Math.max(0, Math.floor(ms/1000)); return Math.floor(s/60)+":"+(s%60<10?"0":"")+(s%60) }
@@ -379,7 +384,7 @@ ApplicationWindow {
                 RowLayout{Layout.fillWidth:true
                     Action{text:qsTr("Open window");implicitHeight:34;onClicked:{trayWindow.hide();root.show();root.raise();root.requestActivate()}}
                     Item{Layout.fillWidth:true}
-                    Action{text:qsTr("Settings");iconName:"settings";implicitHeight:34;onClicked:{trayWindow.hide();root.openSettings(0,0);root.show();root.raise();root.requestActivate()}}
+                    Action{text:qsTr("Settings");iconName:"settings";implicitHeight:34;onClicked:{trayWindow.hide();root.openSettings();root.show();root.raise();root.requestActivate()}}
                 }
                 RowLayout{Layout.fillWidth:true
                     Action{text:qsTr("Desktop lyrics");implicitHeight:34;checked:desktop.requestedVisible;onClicked:desktop.toggleRequested()}
@@ -411,13 +416,13 @@ ApplicationWindow {
             WindowButton{id:maximizeControl;objectName:"maximizeControl";text:mainChrome.maximized?qsTr("Restore"):qsTr("Maximize");iconName:mainChrome.maximized?"copy":"square";onClicked:mainChrome.toggleMaximized()}
             WindowButton{id:closeControl;objectName:"closeControl";text:qsTr("Close");iconName:"x";onClicked:mainChrome.close()}
         }
-        Action{id:settingsGear;objectName:"settingsGear";anchors.right:captionControls.left;anchors.rightMargin:8;anchors.top:parent.top;anchors.topMargin:4;implicitHeight:36;text:qsTr("Settings");iconName:"settings";opacity:root.gearRevealed?1:0;onHoveredChanged:if(hovered)settingsPage.prepare(0);onClicked:root.openSettings(0,0)
+        Action{id:settingsGear;objectName:"settingsGear";anchors.right:captionControls.left;anchors.rightMargin:8;anchors.top:parent.top;anchors.topMargin:4;implicitHeight:36;text:qsTr("Settings");iconName:"settings";opacity:root.gearRevealed?1:0;onHoveredChanged:if(hovered)settingsPage.prepare(settingsPage.activeGroup);onClicked:root.openSettings()
             Behavior on opacity{NumberAnimation{duration:design.fast}}
         }
     }
     Shortcut{sequence:"F11";onActivated:root.toggleFullscreen()}
     Shortcut{sequence:"Escape";enabled:root.visibility===Window.FullScreen;onActivated:root.toggleFullscreen()}
-    Shortcut{sequence:root.pref("shortcut/settings","Ctrl+,");onActivated:root.openSettings(0,0)}
+    Shortcut{sequence:root.pref("shortcut/settings","Ctrl+,");onActivated:root.openSettings()}
     Shortcut{sequence:root.pref("shortcut/devices","Ctrl+Shift+D");onActivated:root.openSettings(1,0)}
     Shortcut{sequence:root.pref("shortcut/desktop","Ctrl+Shift+L");onActivated:desktop.toggleRequested()}
     Shortcut{sequence:root.pref("shortcut/floating","Ctrl+Shift+P");onActivated:floating.visible=!floating.visible}

@@ -56,6 +56,7 @@ Item {
     property string scrollKey: "0"
     property var navigationHistory: []
     property bool restoringHistory: false
+    property bool sectionJumpPending: false
     readonly property bool advancedExpanded: !!expandedGroups[activeGroup+"/"+activeSection]
     readonly property var groupNames: [qsTr("General"),qsTr("Devices and connection"),qsTr("Media"),qsTr("Lyrics"),qsTr("Appearance"),qsTr("Advanced")]
     readonly property var sectionNames: [
@@ -120,7 +121,14 @@ Item {
     onInitialGroupChanged: if(componentReady)navigate(initialGroup,0)
     onInitialSectionChanged: if(componentReady)navigate(activeGroup,initialSection)
     onActiveGroupChanged:if(componentReady){rememberCategory();if(motion&&visible)animateCategory()}
-    onVisibleChanged:if(!visible){categoryMotion.stop();contentScroll.opacity=1;categoryOffset.y=0}
+    onVisibleChanged:{
+        if(!componentReady)return
+        if(visible){
+            if(sectionJumpPending){sectionJumpPending=false;sectionJump.restart()}
+            else if(!sectionJump.running)restoreScroll.restart()
+        }
+        else {categoryMotion.stop();contentScroll.opacity=1;categoryOffset.y=0}
+    }
     onActiveSectionChanged: {if(activeGroup===4)appearanceScope=scopeFor(activeSection)}
     onAppearanceScopeChanged: {
         if(activeGroup!==4)return
@@ -150,7 +158,7 @@ Item {
         return catalog.filter(function(row){return !row.hidden&&row.group===group&&row.section===section&&(!row.advanced||advancedFor(group,section))&&row.key!=="lyrics/providerPriority"&&row.key!=="cover/source"&&!(String(row.key).indexOf("cover/providers/")===0&&String(row.key).endsWith("/enabled"))&&!(String(row.key).indexOf("lyrics/providers/")===0&&String(row.key).endsWith("/enabled"))})
     }
     function subgroupsFor(group,section){
-        const keys=[];catalog.forEach(function(row){if(row.group===group&&row.section===section&&row.subgroup&&keys.indexOf(row.subgroup)<0)keys.push(row.subgroup)})
+        const keys=[];rowsFor(group,section).forEach(function(row){if(row.subgroup&&keys.indexOf(row.subgroup)<0)keys.push(row.subgroup)})
         const names={layout:qsTr("Typography"),current:qsTr("Current line"),inactive:qsTr("Other lines"),word:qsTr("Word highlighting"),scroll:qsTr("Scrolling"),translation:qsTr("Translation"),romanization:qsTr("Romanization")}
         return keys.map(function(key){let label=names[key]||key;for(let i=0;i<catalog.length;i++)if(catalog[i].group===group&&catalog[i].section===section&&catalog[i].subgroup===key&&catalog[i].subgroupLabel){label=catalog[i].subgroupLabel;break}return {key:key,label:label}})
     }
@@ -163,13 +171,18 @@ Item {
     function scopeChoices(section){return section===1?[{label:qsTr("Global"),value:"global"},{label:qsTr("Main background"),value:"background"}]:[{label:qsTr("Global"),value:"global"},{label:qsTr("Playback dock"),value:"dock"},{label:qsTr("Popups"),value:"popup"},{label:qsTr("Floating player"),value:"floating"},{label:qsTr("Desktop lyrics"),value:"desktop"}]}
     function scopeFor(section){return appearanceScopes[String(section)]||"global"}
     function setScope(section,scope){const state=Object.assign({},appearanceScopes);state[String(section)]=scope;appearanceScopes=state;activeSection=section;appearanceScope=scope}
+    function rememberPosition(){
+        if(visible&&!restoreScroll.running&&contentScroll.contentItem)scrollPositions[scrollKey]=contentScroll.contentItem.contentY
+    }
     function rememberCategory(){
-        if(!restoreScroll.running&&contentScroll.contentItem)scrollPositions[scrollKey]=contentScroll.contentItem.contentY
+        rememberPosition()
         highlightedKey="";restoreScroll.restart()
     }
     function navigate(group,section){
         pendingGroup=Math.max(0,Math.min(5,group));activeGroup=pendingGroup;activeSection=Math.max(0,section)
-        setSectionExpanded(activeGroup,activeSection,true);searchField.clear();sectionJump.restart()
+        setSectionExpanded(activeGroup,activeSection,true);searchField.clear()
+        if(visible)sectionJump.restart()
+        else sectionJumpPending=true
     }
     function goBack(){if(!navigationHistory.length)return;const history=navigationHistory.slice();const key=Number(history.pop());navigationHistory=history;restoringHistory=true;activeGroup=key;activeSection=0;searchField.clear()}
     function jumpTo(row){
@@ -502,7 +515,7 @@ Item {
         Item{Layout.fillWidth:true}
         Label{visible:appearancePanel.scope!=="global";text:qsTr("Use global settings");color:page.textColor}
         Toggle{visible:appearancePanel.scope!=="global";checked:appearancePanel.inherited;Accessible.name:qsTr("Use global settings");onClicked:page.controller.setAppearanceInherited(appearancePanel.scope,checked)}
-        Choice{visible:appearancePanel.scope==="global";Layout.preferredWidth:155;Accessible.name:qsTr("Appearance preset");model:[{label:qsTr("Preset"),value:""},{label:qsTr("Clear"),value:"clear"},{label:qsTr("Balanced"),value:"balanced"},{label:qsTr("Vivid"),value:"vivid"},{label:qsTr("Optical"),value:"optical"}];currentIndex:0;onActivated:if(currentIndex>0){page.controller.applyAppearancePreset(model[currentIndex].value);currentIndex=0}}
+        Choice{visible:appearancePanel.scope==="global";Layout.preferredWidth:155;Accessible.name:qsTr("Appearance preset");model:[{label:qsTr("Preset"),value:""}].concat(page.appearancePresetRows.filter(function(row){return row.builtIn}));currentIndex:0;onActivated:if(currentIndex>0){const name=model[currentIndex].value;page.selectedAppearancePresetName=name;page.controller.applyAppearancePreset(name);currentIndex=0}}
     }
     component LyricPresetsPanel: ColumnLayout {
         id:presetPanel
@@ -568,7 +581,7 @@ Item {
         required property int sectionIndex
         property int groupIndex:page.activeGroup
         property bool appearance:groupIndex===4&&(sectionIndex===1||sectionIndex===2)
-        property var allRows:page.catalog.filter(function(row){return row.group===groupIndex&&row.section===sectionIndex})
+        property var allRows:page.catalog.filter(function(row){return !row.hidden&&row.group===groupIndex&&row.section===sectionIndex})
         property bool hasAdvanced:appearance||allRows.some(function(row){return row.advanced})
         property bool advanced:page.advancedFor(groupIndex,sectionIndex)
         property bool collapsed:page.isCollapsed(groupIndex,sectionIndex)
@@ -699,6 +712,19 @@ Item {
         highContrast: page.highContrast
         glassEnabled: !page.highContrast&&page.value("appearance/style","liquid")==="liquid"
     }
+    component PresetFooter: Item {
+        id:presetFooter
+        required property GlassDialog dialog
+        default property alias actions:buttons.data
+        implicitHeight:buttons.implicitHeight+dialog.footerBottomInset
+        RowLayout {
+            id:buttons
+            anchors.left:parent.left;anchors.right:parent.right;anchors.top:parent.top
+            anchors.leftMargin:presetFooter.dialog.footerInset;anchors.rightMargin:anchors.leftMargin
+            spacing:8
+            Item{Layout.fillWidth:true}
+        }
+    }
     ConfirmDialog {
         id:resetDialog;objectName:"resetSettingsConfirm";title:qsTr("Restore defaults?");modal:true;anchors.centerIn:Overlay.overlay;width:Math.min(420,page.width-24)
         standardButtons:Dialog.Ok|Dialog.Cancel
@@ -711,8 +737,7 @@ Item {
         modal:true;anchors.centerIn:Overlay.overlay;width:Math.min(380,page.width-24);padding:20
         onOpened:{presetNameField.text=page.presetNameAction==="rename"?page.presetRenameFrom:"";presetNameField.forceActiveFocus();presetNameField.selectAll()}
         contentItem:Field{id:presetNameField;objectName:"presetNameField";placeholderText:qsTr("Preset name");maximumLength:64;Accessible.name:qsTr("Preset name");onAccepted:if(page.validPresetName(text,page.presetRenameFrom))presetNameDialog.accept()}
-        footer:RowLayout {spacing:8
-            Item{Layout.fillWidth:true}
+        footer:PresetFooter {dialog:presetNameDialog
             FlatButton{text:qsTr("Cancel");onClicked:presetNameDialog.reject()}
             FlatButton{objectName:"presetNameSave";text:qsTr("Save");frosted:true;enabled:page.validPresetName(presetNameField.text,page.presetRenameFrom);onClicked:presetNameDialog.accept()}
         }
@@ -723,8 +748,7 @@ Item {
         property string presetName:""
         onOpened:presetName=page.managedPresetName
         contentItem:Label{text:qsTr("The saved style “%1” will be removed.").arg(presetDeleteDialog.presetName);color:page.textColor;wrapMode:Text.Wrap}
-        footer:RowLayout {spacing:8
-            Item{Layout.fillWidth:true}
+        footer:PresetFooter {dialog:presetDeleteDialog
             FlatButton{text:qsTr("Cancel");onClicked:presetDeleteDialog.reject()}
             FlatButton{objectName:"presetDeleteConfirm";text:qsTr("Delete");onClicked:presetDeleteDialog.accept()}
         }

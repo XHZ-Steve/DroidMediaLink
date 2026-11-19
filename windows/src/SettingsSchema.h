@@ -58,6 +58,7 @@ inline QVariantList descriptors(){
  S("lyrics/providers/lrclib/enabled","LRCLIB lyrics",3,0,"bool",true);
  S("home/layout","Home layout",4,0,"enum",0,0,2,1,QVariantList{QVariantMap{{"label",QCoreApplication::translate("Settings","Album focus")},{"value",0}},QVariantMap{{"label",QCoreApplication::translate("Settings","Expanded artwork")},{"value",1}},QVariantMap{{"label",QCoreApplication::translate("Settings","Expanded lyrics")},{"value",2}}});
  S("home/artworkScale","Home artwork scale",4,0,"number",1.0,.55,1.35,.05);
+ S("home/artworkRadius","Home artwork corner radius",4,0,"int",0,0,100,1);
  const char *layoutGroups[]={QT_TRANSLATE_NOOP("Settings","Album focus positioning"),QT_TRANSLATE_NOOP("Settings","Expanded artwork positioning"),QT_TRANSLATE_NOOP("Settings","Expanded lyrics positioning")};
  for(int layout=0;layout<3;++layout){
   const auto prefix="home/layouts/"+QString::number(layout)+"/";

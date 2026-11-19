@@ -10,6 +10,7 @@ inline const char *const labels[]={
  QT_TRANSLATE_NOOP("Settings","Uses complete lyric text published by the player. Availability depends on the player; no private app files are read."),
 
  QT_TRANSLATE_NOOP("Settings","Home artwork scale"),
+ QT_TRANSLATE_NOOP("Settings","Home artwork corner radius"),
  QT_TRANSLATE_NOOP("Settings","Playback dock shape"),
  QT_TRANSLATE_NOOP("Settings","Play button style"),
  QT_TRANSLATE_NOOP("Settings","rounded"),

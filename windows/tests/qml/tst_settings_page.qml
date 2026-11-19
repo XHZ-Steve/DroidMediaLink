@@ -26,7 +26,8 @@ Item {
             {key:"motion",label:"TEST animations",group:0,section:0,type:"bool",defaultValue:true},
             {key:"language",label:"TEST language",group:0,section:0,type:"enum",defaultValue:"en",options:[{label:"English",value:"en"},{label:"简体中文",value:"zh_CN"}]},
             {key:"shortcut",label:"TEST shortcut",group:0,section:0,type:"shortcut",defaultValue:""},
-            {key:"lyrics/offset",label:"TEST sync offset",group:3,section:4,type:"int",defaultValue:0,min:-10000,max:10000,step:100,advanced:true}
+            {key:"lyrics/offset",label:"TEST sync offset",group:3,section:4,type:"int",defaultValue:0,min:-10000,max:10000,step:100,advanced:true},
+            {key:"lyrics/testScroll",label:"TEST scroll effect",group:3,section:4,type:"bool",defaultValue:false,advanced:true,subgroup:"scroll"}
         ]
         property var appearanceDescriptors: [
             {key:"glassMotion",label:"TEST optical motion",group:"glass",type:"bool",defaultValue:true},
@@ -105,6 +106,44 @@ Item {
             verify(dialog.footer.count>=2)
             keyClick(Qt.Key_Escape);tryCompare(dialog,"visible",false)
             compare(controller.values.motion,true)
+        }
+        function test_preset_buttons_respect_large_panel_radius(){
+            controller.setAppearance("popup","glassRadius",48)
+            page.editPresetName("save",true)
+            const dialog=findChild(page,"presetNameDialog")
+            tryCompare(dialog,"opened",true)
+            const save=findChild(page,"presetNameSave")
+            compare(dialog.panelRadius,48)
+            tryVerify(function(){
+                const bottomRight=save.mapToItem(dialog.footer,save.width,save.height)
+                return dialog.footer.width-bottomRight.x>=dialog.footerInset-1&&
+                    dialog.footer.height-bottomRight.y>=dialog.footerBottomInset-1
+            })
+            dialog.reject()
+        }
+        function test_advanced_only_subgroup_is_hidden_when_collapsed(){
+            page.setAdvanced(3,4,false)
+            compare(page.subgroupsFor(3,4).length,0)
+            page.setAdvanced(3,4,true)
+            compare(page.subgroupsFor(3,4)[0].key,"scroll")
+            page.setAdvanced(3,4,false)
+        }
+        function test_scroll_position_survives_reopening_settings(){
+            const original=controller.settingsCatalog
+            const rows=Array.from({length:22},function(_,i){return {key:"scroll-test-"+i,label:"Test",group:4,section:0,type:"bool",defaultValue:false}})
+            controller.settingsCatalog=original.concat(rows)
+            page.navigate(4,0)
+            const flick=findChild(page,"settingsScroll").contentItem
+            tryVerify(function(){return flick.contentHeight>flick.height+180})
+            wait(80)
+            flick.contentY=180
+            page.rememberPosition()
+            page.visible=false
+            flick.contentY=0
+            page.visible=true
+            tryCompare(flick,"contentY",180)
+            compare(page.activeGroup,4)
+            controller.settingsCatalog=original
         }
         function test_switch_commits_actual_boolean(){
             const toggle=findChild(page,"editor-motion")

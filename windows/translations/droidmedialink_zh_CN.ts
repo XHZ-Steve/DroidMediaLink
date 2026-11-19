@@ -870,6 +870,22 @@
 <context>
     <name>Settings</name>
     <message>
+        <source>Home artwork corner radius</source>
+        <translation>主页封面圆角</translation>
+    </message>
+    <message>
+        <source>Word glow radius</source>
+        <translation>逐字辉光半径</translation>
+    </message>
+    <message>
+        <source>Word glow opacity</source>
+        <translation>逐字辉光强度</translation>
+    </message>
+    <message>
+        <source>Word glow color</source>
+        <translation>逐字辉光颜色</translation>
+    </message>
+    <message>
         <source>Phone lyrics</source>
         <translation>手机歌词</translation>
     </message>
@@ -2164,6 +2180,26 @@
 </context>
 <context>
     <name>SettingsPage</name>
+    <message>
+        <source>Balanced dark</source>
+        <translation>暗色均衡</translation>
+    </message>
+    <message>
+        <source>Bright dark</source>
+        <translation>暗色高亮</translation>
+    </message>
+    <message>
+        <source>Immersive dark</source>
+        <translation>暗色沉浸</translation>
+    </message>
+    <message>
+        <source>Dark cinema</source>
+        <translation>暗色影院</translation>
+    </message>
+    <message>
+        <source>Soft light</source>
+        <translation>浅色淡光</translation>
+    </message>
     <message>
         <source>Show advanced options</source>
         <translation>显示高级参数</translation>

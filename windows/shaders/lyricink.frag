@@ -16,12 +16,23 @@ float soft(vec2 p,float radius){
  for(int i=0;i<8;i++){float angle=float(i)*.7853981634;vec2 d=vec2(cos(angle),sin(angle))*r;
  a+=alphaAt(p+d*.45)*.06+alphaAt(p+d)*.04;}return a;
 }
+float glowMask(vec2 p,float radius){
+ float total=alphaAt(p)*.13;vec2 r=texel*radius;
+ for(int i=0;i<8;i++){
+  float angle=float(i)*.7853981634;
+  vec2 d=vec2(cos(angle),sin(angle));
+  vec2 rotated=vec2(.9238795*d.x-.3826834*d.y,.3826834*d.x+.9238795*d.y);
+  total+=alphaAt(p+d*r*.19)*.05+alphaAt(p+rotated*r*.39)*.043
+       +alphaAt(p+d*r*.64)*.031+alphaAt(p+rotated*r*.89)*.015;
+ }
+ return min(1.,total);
+}
 vec4 over(vec4 front,vec4 back){return front+back*(1-front.a);}
 vec4 colored(vec4 c,float a){a*=c.a;return vec4(c.rgb*a,a);}
 void main(){
  vec2 uv=qt_TexCoord0;vec4 ink=texture(source,uv);vec4 result=vec4(0);
  if(shadeColor.a>0)result=colored(shadeColor,soft(uv-vec2(0,shadeOffset)*texel,max(.5,shade)));
- if(haloColor.a>0)result=over(colored(haloColor,soft(uv,max(.5,halo))),result);
+ if(haloColor.a>0)result=over(colored(haloColor,glowMask(uv,halo)),result);
  if(stroke>0)result=over(colored(strokeColor,spread(uv,stroke)),result);
  fragColor=over(ink,result)*qt_Opacity;
 }
