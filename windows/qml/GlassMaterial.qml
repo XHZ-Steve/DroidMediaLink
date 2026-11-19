@@ -9,6 +9,7 @@ Item {
     property bool glassEnabled: true
     property bool active: visible
     property bool motion: true
+    property real rasterScale:1
     property var configuration: ({})
     function setting(key, fallback) { const value=configuration[key];return value===undefined?fallback:value }
     property real cornerRadius: 24
@@ -48,6 +49,7 @@ Item {
         anchors.fill: parent
         visible: root.glassEnabled && root.sourceItem !== null
         active: root.active && visible
+        rasterScale: root.rasterScale
         backdrop: root.sourceItem
         sourceRect: root.sourceRect
         backdropColor: root.backdropColor

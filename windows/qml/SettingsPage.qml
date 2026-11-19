@@ -23,6 +23,7 @@ Item {
     property Item materialSource: null
     readonly property real contentInset: Math.max(16,(width-700)/2)
     property bool componentReady: false
+    property real rasterScale:1
     property var collapsedSections: ({})
     property var appearanceScopes: ({})
     property var collapsedSubgroups: ({})
@@ -616,6 +617,7 @@ Item {
         anchors.fill:parent;anchors.leftMargin:Math.max(0,page.contentInset-20);anchors.rightMargin:anchors.leftMargin
         active:page.materialSource!==null&&page.value("appearance/style","standard")==="liquid"
         sourceComponent:GlassMaterial {
+            rasterScale:page.rasterScale
             anchors.fill:parent;sourceItem:page.materialSource;glassEnabled:true;active:page.visible;motion:false
             dark:!page.light;backdropColor:tokens.base;cornerRadius:24
             configuration:({glassOpacity:.025,glassBlur:1.6,glassRefraction:.18,glassDistortion:.4,glassDispersion:0,glassEdgeGlow:.05,glassShadow:0,glassRadius:24,glassMotion:false,quality:0})

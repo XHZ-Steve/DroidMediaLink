@@ -111,7 +111,7 @@ public:
  QVariantList devices()const{return m_devices;}
  QVariantList settingsCatalog()const;
  QVariantList appearanceDescriptors()const;
- QString ambientAccent()const{auto color=m_coverPalette.primary;if(color.hslHueF()>=0)color.setHslF(color.hslHueF(),qMin(.85,color.hslSaturationF()+.12),qMin(.8,color.lightnessF()+.15));return color.name();}
+ QString ambientAccent()const{return m_coverPalette.accent.name();}
  Q_INVOKABLE QVariantMap appearanceConfig(QString scope)const;
  Q_INVOKABLE QVariantMap lyricStyleConfig(QString prefix)const;
  Q_INVOKABLE void resetSetting(QString key);

@@ -28,6 +28,8 @@ public:
   QTemporaryDir files;QSettings saved;saved.setValue("preferences/lyrics/online",false);saved.setValue("preferences/lyrics/autoMatchMigration",true);saved.sync();Bridge bridge;
   bridge.setSetting("home/windowBackgroundOpacity",.45);
   if(bridge.setting("home/windowBackgroundOpacity",1.).toDouble()!=.45)return 122;
+  bridge.setSetting("home/artworkScale",1.25);
+  if(bridge.setting("home/artworkScale",1.).toDouble()!=1.25)return 127;
   const auto savedOrder=bridge.setting("lyrics/providerPriority");
   bridge.m_settings.setValue("preferences/lyrics/preferredProvider","netease");
   bridge.m_settings.setValue("preferences/lyrics/phoneSource","only");

@@ -17,6 +17,7 @@ Item {
     property bool ready: false
     property bool changingLayout: false
     readonly property int mode: {settingsRevision;return controller.setting("home/layout",0)}
+    property real rasterScale:1
     readonly property real artworkScale:{settingsRevision;return Math.max(.55,Math.min(1.35,controller.setting("home/artworkScale",1)))}
     readonly property real artworkShare:Math.min(.6,.46+Math.max(0,artworkScale-1)*.4)
     readonly property bool split: mode!==0 && width>780 && width/Math.max(1,height)>1.12
@@ -135,7 +136,7 @@ Item {
             Layout.row:0;Layout.column:0;Layout.rowSpan:canvas.split?2:1
             Layout.fillWidth:true;Layout.fillHeight:canvas.split||!canvas.lyricsMode
             Layout.preferredWidth:canvas.split?(slots.width-slots.columnSpacing)*canvas.artworkShare:slots.width
-            Layout.preferredHeight:canvas.split?slots.height:canvas.lyricsMode?Math.min(180,slots.height*.32):Math.max(110,slots.height-metadata.implicitHeight-(canvas.displayingLyrics?74:0)-20)
+            Layout.preferredHeight:canvas.split?slots.height:canvas.lyricsMode?Math.min(180,slots.height*.32)*Math.max(1,canvas.artworkScale):Math.max(110,slots.height-metadata.implicitHeight-(canvas.displayingLyrics?74:0)-20)
             Layout.minimumHeight:90
         }
         Item {
@@ -165,7 +166,12 @@ Item {
     readonly property rect coverGeometry:geometry("cover",coverTarget)
     readonly property rect metadataGeometry:geometry("metadata",metadataTarget)
     readonly property rect lyricGeometry:geometry("lyrics",lyricTarget)
-    readonly property real artworkExtent:Math.max(1,Math.min(coverSlot.width,coverSlot.height,Math.min(split?(slots.width-slots.columnSpacing)*.46:coverSlot.width,coverSlot.height,mode===1?620:split?440:460)*artworkScale))
+    readonly property real artworkLimit:Math.min(coverSlot.width,coverSlot.height)
+    readonly property real nominalArtworkExtent:Math.min(
+        split?(slots.width-slots.columnSpacing)*.46:coverSlot.width,
+        split?coverSlot.height*.94:lyricsMode?Math.min(180,slots.height*.32):artworkLimit*.9,
+        mode===1?620:split?440:460)
+    readonly property real artworkExtent:Math.max(1,Math.min(artworkLimit,nominalArtworkExtent*artworkScale))
     CoverArtwork {
         id: artwork;objectName:"heroArtwork"
         width:canvas.coverGeometry.width;height:canvas.coverGeometry.height
@@ -182,7 +188,7 @@ Item {
         implicitHeight:titleMeasure.implicitHeight+(artistLabel.visible?artistLabel.implicitHeight+7:0)+(sourceLabel.visible?sourceLabel.implicitHeight+7:0)+(connectButton.visible?43:0)
         Text {
             id:titleMeasure;visible:false;width:Math.max(80,metadataSlot.width-2*Math.abs(canvas.layoutConfiguration.titleX));text:titleLabel.displayTitle;textFormat:Text.PlainText
-            font:titleLabel.font;wrapMode:Text.Wrap;maximumLineCount:2;renderType:Text.NativeRendering
+            font:titleLabel.font;wrapMode:Text.Wrap;maximumLineCount:2
         }
         Label {
             id:titleLabel;objectName:"trackTitle";width:Math.min(implicitWidth,metadata.width);x:canvas.textX(titleLabel,"titleX");readonly property string rawTitle:canvas.controller.title||qsTr("No media")
@@ -196,17 +202,17 @@ Item {
             height:canvas.changingLayout?canvas.mix(canvas.fromGeometry.titleHeight,canvas.toGeometry.titleHeight):titleMeasure.implicitHeight
             color:canvas.textColor;font.family:typography.resolvedFamily(displayTitle,tokens.displayFamily);font.weight:500
             font.pixelSize:Math.max(26,Math.min(32,canvas.width*.04))
-            renderType:Text.NativeRendering;wrapMode:Text.Wrap;maximumLineCount:2;elide:Text.ElideRight
+            wrapMode:Text.Wrap;maximumLineCount:2;elide:Text.ElideRight
             horizontalAlignment:Text.AlignLeft
         }
         Label {
             id:artistLabel;width:Math.min(implicitWidth,metadata.width);x:canvas.textX(artistLabel,"artistX");y:titleLabel.height+7;visible:text.length>0;text:canvas.controller.artist;textFormat:Text.PlainText;color:canvas.secondaryColor
-            font.family:tokens.family;font.pixelSize:16;font.weight:400;renderType:Text.NativeRendering
+            font.family:tokens.family;font.pixelSize:16;font.weight:400
             elide:Text.ElideRight;horizontalAlignment:Text.AlignLeft
         }
         Label {
             id:sourceLabel;width:Math.min(implicitWidth,metadata.width);x:canvas.textX(sourceLabel,"sourceX");y:(artistLabel.visible?artistLabel.y+artistLabel.height:titleLabel.height)+7;visible:text.length>0;text:canvas.controller.appName;textFormat:Text.PlainText;color:canvas.secondaryColor
-            opacity:.74;font.family:tokens.family;font.pixelSize:12;renderType:Text.NativeRendering
+            opacity:.74;font.family:tokens.family;font.pixelSize:12
             elide:Text.ElideRight;horizontalAlignment:Text.AlignLeft
         }
         Button {
@@ -241,7 +247,7 @@ Item {
             y:homeLyrics.returning&&canvas.changingLayout?homeLyrics.primaryY-primaryRect.y*scale:0
             controller:canvas.controller;settingsRevision:canvas.settingsRevision;settingsPrefix:"lyrics";flushAlignment:true;alignmentAnimation:false
             alignmentPosition:(1-canvas.textAlignment)/2
-            compact:false;originalFocus:canvas.lyricFocus
+            compact:false;originalFocus:canvas.lyricFocus;rasterScale:canvas.rasterScale
             opacity:canvas.contentReveal*(homeLyrics.returning&&canvas.changingLayout?1-canvas.blendIn(canvas.transitionProgress/.22):homeLyrics.expansion);visible:opacity>.001||homeLyrics.returning
             transformOrigin:Item.TopLeft
             scale:homeLyrics.sizeRatio+(1-homeLyrics.sizeRatio)*homeLyrics.expansion
@@ -258,7 +264,7 @@ Item {
             controller:canvas.controller;settingsRevision:canvas.settingsRevision;settingsPrefix:"lyrics";flushAlignment:true;alignmentAnimation:false
             alignmentPosition:homeLyrics.returning?(1-canvas.targetTextAlignment)/2:(1-canvas.textAlignment)/2
             clockEnabled:opacity>.001;motion:canvas.motion&&!canvas.changingLayout&&opacity>.001
-            compact:true;compactLines:1;opacity:canvas.contentReveal*(homeLyrics.returning?canvas.blendIn((canvas.transitionProgress-.72)/.28):1-homeLyrics.expansion);visible:canvas.displayingLyrics
+            compact:true;compactLines:1;rasterScale:canvas.rasterScale;opacity:canvas.contentReveal*(homeLyrics.returning?canvas.blendIn((canvas.transitionProgress-.72)/.28):1-homeLyrics.expansion);visible:canvas.displayingLyrics
             transformOrigin:Item.TopLeft
             scale:1+(1/homeLyrics.sizeRatio-1)*homeLyrics.expansion
             configuration:({fontSize:canvas.controller.setting("lyrics/fontSize",28)*.85,activeWeight:canvas.controller.setting("lyrics/activeWeight",500),longLine:canvas.controller.setting("lyrics/longLine","wrap")==="scroll"?"scroll":"elide",alignment:canvas.layoutAlignment,translation:false,romanization:false,autoScroll:true})

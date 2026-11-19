@@ -18,3 +18,5 @@ The surface uses the upstream rounded signed distance field with refraction, RGB
 Local shader patch (2026-11-12): liquidglass.frag uses fwidth of the analytic shape distance for contour coverage rather than a fixed 1.5-device-pixel transition. This smooths small circular play buttons and fractional-DPI silhouettes without lowering capture resolution or adding blur. The modified generated shader is intentionally maintained as an application patch; preserve it when regenerating from upstream.
 
 Local shader patch (2026-11-15): preserve normal-directed, backdrop-derived RGB separation at the fold shoulder where measured displacement passes zero. The spectral tap span is bounded by the refractive band; no painted spectral outline or additional texture allocation. Fine-scatter share increased from .82 to .94 to retain the optical image.
+
+Local capture sizing (2026-11-19): the host passes its proportional layout scale to GlassSurface. The capture texture and pixel-space material uniforms use the same effective pixel density, while the external contour keeps its two-device-pixel padding.

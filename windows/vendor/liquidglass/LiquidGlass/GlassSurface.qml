@@ -55,7 +55,8 @@ Item {
     readonly property point materialSize: effect.uSize
 
     // Two device pixels around the glass for the outer contour, as in every port.
-    readonly property real dpr: Screen.devicePixelRatio > 0 ? Screen.devicePixelRatio : 1
+    property real rasterScale: 1
+    readonly property real dpr: (Screen.devicePixelRatio > 0 ? Screen.devicePixelRatio : 1)*rasterScale
     readonly property real padUnits: 2 / dpr
     readonly property int deviceWidth: Math.max(1, Math.ceil(width * dpr))
     readonly property int deviceHeight: Math.max(1, Math.ceil(height * dpr))

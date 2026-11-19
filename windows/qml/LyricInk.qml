@@ -2,6 +2,7 @@ import QtQuick
 Item {
  id:ink
  property real outlineWidth:0
+ property real pixelDensity:Screen.devicePixelRatio
  property color outlineColor:"#80000000"
  property bool shadow:false
  property real shadowBlur:6
@@ -13,6 +14,7 @@ Item {
  property color glowColor:"#d4e7ff"
  layer.enabled:visible&&(outlineWidth>0||shadow||glow)
  layer.smooth:true
+ layer.textureSize:Qt.size(Math.min(8192,Math.ceil(width*pixelDensity)),Math.ceil(height*pixelDensity))
  layer.effect:ShaderEffect {
   property var source
   property vector2d texel:Qt.vector2d(1/Math.max(1,ink.width),1/Math.max(1,ink.height))

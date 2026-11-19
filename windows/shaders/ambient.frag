@@ -21,6 +21,11 @@ vec3 vivid(vec3 c) {
     float y=dot(c,luma);
     float chroma=max(c.r,max(c.g,c.b))-min(c.r,min(c.g,c.b));
     float amount=max(0.,tuning.z+tuning.w*(1.-chroma));
+    // Limit the saturation gain for the entire colour, so clipping a single
+    // channel cannot turn nuanced teal, amber or violet into a primary colour.
+    float low=min(c.r,min(c.g,c.b));
+    float high=max(c.r,max(c.g,c.b));
+    amount=min(amount,min(y/max(.0001,y-low),(1.-y)/max(.0001,high-y)));
     return clamp(mix(vec3(y),c,amount),0.,1.);
 }
 float region(vec2 p,vec2 center,vec2 stretch,float radius) {
@@ -54,9 +59,9 @@ void main() {
     vec2 drift=(p0-vec2(.5))*.35;
     float a=region(uv,clamp(p0+d01+d02,.06,.94),metric,radius*(1.+.10*sin(t)));
     float b=region(uv,clamp(p1-d01+d12,.06,.94),metric,radius*.95);
-    float c=region(uv,clamp(p2-d02-d12,.06,.94),metric,radius*.72)*(.52+.08*sin(t));
+    float c=region(uv,clamp(p2-d02-d12,.06,.94),metric,radius*.82)*(.78+.08*sin(t));
     // Local colour ownership prevents opposite hues becoming a flat grey field.
-    vec3 weights=pow(vec3(a,b,c),vec3(1.35));
+    vec3 weights=pow(vec3(a,b,c),vec3(1.55));
     float total=weights.x+weights.y+weights.z;
     vec3 colors=(linearColor(vivid(primaryColor.rgb))*weights.x+
                  linearColor(vivid(secondaryColor.rgb))*weights.y+
@@ -68,10 +73,10 @@ void main() {
     // Continuous energy mapping has no clipped overlap boundary. Fill follows
     // the *uncovered* area and borrows spatially distinct broad palette lobes.
     float coverage=1.-exp(-total*tuning.x*2.2);
-    vec3 fillWeights=vec3(
+    vec3 fillWeights=pow(vec3(
         region(uv,vec2(.08,.72)+drift*.35,metric,.85*fluid.w),
         region(uv,vec2(.92,.25)-drift*.35,metric,.85*fluid.w),
-        region(uv,vec2(.52,.95),metric,.7*fluid.w));
+        region(uv,vec2(.52,.95),metric,.7*fluid.w)),vec3(1.65));
     float fillTotal=dot(fillWeights,vec3(1.));
     vec3 fillColor=(linearColor(vivid(primaryColor.rgb))*fillWeights.x+
                     linearColor(vivid(secondaryColor.rgb))*fillWeights.y+

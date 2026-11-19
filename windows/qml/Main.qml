@@ -169,6 +169,7 @@ ApplicationWindow {
     component Transport: RowLayout {
         id: controls
         property bool compact: false
+        property real rasterScale:1
         property Item backdrop:ambient
         readonly property bool water:root.pref("dock/playStyle","solid")==="water"&&!root.highContrast
         spacing: compact?4:10
@@ -179,6 +180,7 @@ ApplicationWindow {
             enabled: supports(backend.playing?"pause":"play") || supports("toggle")
             implicitWidth: controls.compact?44:48; implicitHeight: implicitWidth; font.pixelSize: 24
             background: GlassMaterial {
+                rasterScale:controls.rasterScale
                 sourceItem:controls.backdrop;glassEnabled:controls.water;active:Window.window&&Window.window.visible;motion:root.motion
                 configuration:Object.assign({},root.material("dock"),{glassRadius:width/2,glassOpacity:.06,glassBlur:1.4,glassRefraction:1.6,glassDistortion:1.2,glassEdgeGlow:.65,glassEdgeWidth:1.7})
                 cornerRadius:width/2;dark:!root.light;backdropColor:root.bg;tintColor:root.accent;fallbackColor:root.accent
@@ -208,7 +210,7 @@ ApplicationWindow {
             enabled:!pageMotion.running
             currentIndex:root.page===0?0:1;Layout.fillWidth:true;Layout.fillHeight:true
             NowPlayingCanvas {
-                id:homePage;controller:backend;settingsRevision:root.settingsRevision
+                id:homePage;controller:backend;settingsRevision:root.settingsRevision;rasterScale:root.contentScale
                 light:root.light;motion:root.motion;lyricsEnabled:root.showLyrics
                 textColor:root.fg;secondaryColor:root.muted;accent:root.accent
                 onConnectRequested:root.openSettings(1,0)
@@ -216,7 +218,7 @@ ApplicationWindow {
                 onSeekRequested:function(position){backend.command("seek",position)}
             }
             SettingsPage {
-                id:settingsPage;objectName:"settingsPage";highContrast:root.highContrast;materialSource:ambient;controller:backend;settingsRevision:root.settingsRevision;light:root.light;motion:root.motion;accent:root.accent;textColor:root.fg
+                id:settingsPage;objectName:"settingsPage";highContrast:root.highContrast;materialSource:ambient;controller:backend;settingsRevision:root.settingsRevision;light:root.light;motion:root.motion;accent:root.accent;textColor:root.fg;rasterScale:root.contentScale
                 onCloseRequested:root.changePage(0)
                 onDesktopLyricsRequested:desktop.toggleRequested()
                 onFloatingRequested:floating.visible=!floating.visible
@@ -229,9 +231,11 @@ ApplicationWindow {
         }
         GlassMaterial {
             id:playbackDock;opacity:pageStack.opacity;objectName:"playbackDock";property bool capsule:root.pref("dock/shape","rounded")==="capsule";configuration:capsule?Object.assign({},root.material("dock"),{glassRadius:height/2}):root.material("dock");motion:root.motion
+            rasterScale:root.contentScale
             Layout.alignment:Qt.AlignHCenter;Layout.preferredWidth:Math.min(660,canvasLayout.width);implicitHeight:capsule?84:100;visible:root.page===0
             sourceItem:ambient;glassEnabled:root.liquidStyle;cornerRadius:design.dockRadius;dark:!root.light;active:root.visible&&root.visibility!==Window.Minimized&&visible;backdropColor:root.bg;tintColor:design.elevated;tintStrength:root.light?.10+root.glass*.44:.04+root.glass*.25;fallbackColor:design.surface
             CapsuleProgress {
+                rasterScale:root.contentScale
                 anchors.left:parent.left;anchors.right:parent.right;height:playbackDock.height/2+20;radius:playbackDock.height/2;visible:playbackDock.capsule
                 from:0;to:Math.max(1,backend.duration);value:backend.position;enabled:root.supports("seek");accent:root.accent;trackColor:root.light?"#4024303b":"#38e0e5ff"
                 Accessible.name:qsTr("Playback position");onPressedChanged:if(!pressed)backend.command("seek",value)
@@ -249,7 +253,7 @@ ApplicationWindow {
                         Action{id:favoriteButton;objectName:"favoriteButton";anchors.left:dockLyricsControl.right;anchors.leftMargin:2;anchors.verticalCenter:parent.verticalCenter;visible:root.supports("favorite");enabled:visible;iconName:"heart";checked:backend.favorited;text:backend.favoriteKnown&&backend.favorited?qsTr("Remove from favorites"):qsTr("Add to favorites");onClicked:backend.command("favorite",backend.favoriteKnown&&backend.favorited?0:1)}
                         Caption{visible:playbackDock.capsule;anchors.left:favoriteButton.visible?favoriteButton.right:dockLyricsControl.right;anchors.leftMargin:6;anchors.verticalCenter:parent.verticalCenter;text:root.time(backend.position)}
                     }
-                    Transport{}
+                    Transport{rasterScale:root.contentScale}
                     Item{Layout.fillWidth:true;Layout.preferredWidth:1;implicitHeight:48
                         Action{id:volumeButton;objectName:"volumeButton";anchors.right:parent.right;anchors.verticalCenter:parent.verticalCenter;text:qsTr("Phone volume");iconName:backend.volumeKnown&&backend.volume<=0?"volume-x":"volume-2";enabled:root.supports("volume")&&backend.volumeKnown
                             onHoveredChanged:if(hovered){volumeDismiss.stop();if(!volumePopup.visible)volumePopup.open()}else volumeDismiss.restart()

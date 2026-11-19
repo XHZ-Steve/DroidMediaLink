@@ -7,6 +7,7 @@ import QtQuick.Shapes
 Slider {
     id: control
     property real radius:42
+    property real rasterScale:1
     property color accent:"#b7d9c6"
     property color trackColor:"#38e0e5ff"
     implicitWidth:160;implicitHeight:radius+20
@@ -23,6 +24,7 @@ Slider {
         // the rendered stroke; Slider hit testing and keyboard input stay intact.
         layer.enabled:control.visible&&GraphicsInfo.api!==GraphicsInfo.Software
         layer.smooth:true
+        layer.textureSize:Qt.size(Math.ceil(width*Screen.devicePixelRatio*control.rasterScale),Math.ceil(height*Screen.devicePixelRatio*control.rasterScale))
         layer.effect:ShaderEffect {
             property variant source
             property vector4d fading:Qt.vector4d(0,.72,1,0)

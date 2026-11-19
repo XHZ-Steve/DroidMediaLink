@@ -48,7 +48,17 @@ int main(int argc,char **argv){QCoreApplication app(argc,argv);QTemporaryDir dir
  QImage twoHues(80,80,QImage::Format_RGB32);for(int y=0;y<80;++y)for(int x=0;x<80;++x)twoHues.setPixelColor(x,y,QColor(x<72?"#ff2400":"#2450ff"));if(CoverPalette::fromImage(twoHues).monochromeStrength!=0)return 84;
  QImage nearRed(80,80,QImage::Format_RGB32);for(int y=0;y<80;++y)for(int x=0;x<80;++x)nearRed.setPixelColor(x,y,QColor::fromHslF(x<40?.99:.01,.9,.45));if(CoverPalette::fromImage(nearRed).monochromeStrength<.99)return 85;
  QImage sparse(80,80,QImage::Format_RGB32);sparse.fill(Qt::black);for(int y=0;y<4;++y)for(int x=0;x<80;++x)sparse.setPixelColor(x,y,Qt::red);if(CoverPalette::fromImage(sparse).monochromeStrength!=0)return 86;
- for(int i=1;i<argc;++i){const QImage cover(QString::fromLocal8Bit(argv[i]));if(cover.isNull())return 17;const auto palette=CoverPalette::fromImage(cover);QElapsedTimer timer;timer.start();for(int n=0;n<100;++n)CoverPalette::fromImage(cover);qInfo()<<"Actual cover palette:"<<palette.primary.name()<<palette.secondary.name()<<palette.deep.name()<<"monochrome strength:"<<palette.monochromeStrength<<"mean sampling us:"<<timer.nsecsElapsed()/100000.;}
+ QImage night(96,96,QImage::Format_RGB32);night.fill(QColor("#08162e"));
+ for(int y=0;y<96;++y)for(int x=0;x<96;++x){
+  if(y>=72&&y<78)night.setPixelColor(x,y,QColor("#c98e45"));
+  else if(x>=25&&x<42&&y>=8&&y<62)night.setPixelColor(x,y,QColor("#1d7283"));
+ }
+ const auto nightPalette=CoverPalette::fromImage(night);
+ if(hueDistance(nightPalette.primary,QColor("#08162e"))>.07||
+    hueDistance(nightPalette.secondary,QColor("#c98e45"))>.04||
+    hueDistance(nightPalette.accent,QColor("#1d7283"))>.04||
+    nightPalette.monochromeStrength!=0)return 87;
+ for(int i=1;i<argc;++i){const QImage cover(QString::fromLocal8Bit(argv[i]));if(cover.isNull())return 17;const auto palette=CoverPalette::fromImage(cover);QElapsedTimer timer;timer.start();for(int n=0;n<100;++n)CoverPalette::fromImage(cover);qInfo()<<"Actual cover palette:"<<palette.primary.name()<<palette.secondary.name()<<palette.accent.name()<<palette.deep.name()<<"monochrome strength:"<<palette.monochromeStrength<<"mean sampling us:"<<timer.nsecsElapsed()/100000.;}
 
  bridge.setAppearance("global","glassBlur",3.6);bridge.setAppearance("dock","glassBlur",7.2);
  if(bridge.appearanceConfig("dock")["glassBlur"].toDouble()!=3.6)return 18;

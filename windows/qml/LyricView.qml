@@ -6,6 +6,8 @@ Item {
  id:view
  required property var controller
  property int settingsRevision:0
+ property real rasterScale:1
+ readonly property real pixelDensity:Screen.devicePixelRatio*rasterScale
  property string settingsPrefix:compact?"desktopLyrics":"lyrics"
  readonly property bool desktop:settingsPrefix==="desktopLyrics"
  property var configuration:({})
@@ -206,6 +208,7 @@ Item {
     x:rowItem.scrolling?(rowItem.width-rowItem.scrollViewportWidth)*view.alignmentPosition-body.x:0;width:rowItem.scrolling?rowItem.scrollViewportWidth:parent.width;height:primary.height*view.reserveScale*rowItem.shrink;clip:rowItem.scrolling
     layer.enabled:view.active&&rowItem.scrolling&&rowItem.selected&&GraphicsInfo.api!==GraphicsInfo.Software
     layer.smooth:true
+    layer.textureSize:Qt.size(Math.ceil(width*view.pixelDensity),Math.ceil(height*view.pixelDensity))
     layer.effect:ShaderEffect{
      property var source
      property vector4d fading:Qt.vector4d(0,0,0,1)
@@ -214,6 +217,7 @@ Item {
     }
     LyricInk {
      id:primary
+     pixelDensity:view.pixelDensity
      width:(view.longLine==="scroll"?Math.max(1,words.childrenRect.width):rowItem.sourceWidth)+view.inkPadding*2;height:words.height+view.inkPadding*2
      x:rowItem.scrolling?-rowItem.scrollOffset-view.inkPadding*scale:view.flushAlignment?(parent.width-width*scale)*view.alignmentPosition:view.alignment==="center"?(parent.width-width)/2:view.alignment==="right"?parent.width-width:0
      scale:rowItem.visualScale;transformOrigin:view.flushAlignment||rowItem.scrolling?Item.TopLeft:view.alignment==="center"?Item.Center:view.alignment==="right"?Item.Right:Item.Left
@@ -228,6 +232,7 @@ Item {
       }
      }
      LyricInk {
+      pixelDensity:view.pixelDensity
       x:0;y:0;width:primary.width;height:primary.height;visible:rowItem.selected&&!view.untimed
       glow:view.option("wordGlow",false)&&width<=8192;glowRadius:view.option("glowRadius",8);glowOpacity:view.option("glowOpacity",.2);glowColor:view.option("glowColor","#d4e7ff")
       Flow {x:view.inkPadding;y:view.inkPadding;width:view.longLine==="scroll"?100000:rowItem.sourceWidth
@@ -274,6 +279,7 @@ Item {
   model:view.active?view.rows:null;spacing:Math.round(view.fontSize*view.lineSpacing);cacheBuffer:Math.max(0,height*.5)
   layer.enabled:view.edgeLayer
   layer.smooth:true
+  layer.textureSize:Qt.size(Math.ceil(width*view.pixelDensity),Math.ceil(height*view.pixelDensity))
   layer.effect:ShaderEffect {
    property var source
    property vector4d fading:Qt.vector4d(view.topFade/Math.max(1,view.height),view.bottomFade/Math.max(1,view.height),view.option("fadeStrength",1),0)

@@ -58,8 +58,12 @@ inline void startRenderAudit(QQuickWindow *window,const QString &directory,QCore
    auto item=qobject_cast<QQuickItem*>(object);if(!item||!item->isVisible()||!item->window()||!item->window()->isVisible())continue;
    ++state->surfacesValidated;
    const auto texture=object->property("captureTextureSize").toSize();const auto material=object->property("materialSize").toPointF();
-   const double dpr=window->devicePixelRatio();
-   if(texture.width()!=int(std::ceil(item->width()*dpr))+4||texture.height()!=int(std::ceil(item->height()*dpr))+4||material.x()!=std::ceil(item->width()*dpr)||material.y()!=std::ceil(item->height()*dpr))++state->mismatches;
+   const double sceneScale=item->mapToScene(QPointF(1,0)).x()-item->mapToScene(QPointF()).x();
+   const double dpr=window->devicePixelRatio()*sceneScale;
+   const auto matches=[](int textureExtent,double materialExtent,double expected){
+    return textureExtent==materialExtent+4&&materialExtent-expected>=-.001&&materialExtent-expected<=1.001;
+   };
+   if(!matches(texture.width(),material.x(),item->width()*dpr)||!matches(texture.height(),material.y(),item->height()*dpr))++state->mismatches;
   }
  },Qt::QueuedConnection);
  QObject::connect(timer,&QTimer::timeout,window,[=,&app]{
