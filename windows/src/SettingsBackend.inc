@@ -2,6 +2,22 @@
 // from media transport and the asynchronous lyric engine.
 #include "AppearancePresets.h"
 QVariantList Bridge::settingsCatalog()const{return SettingsSchema::descriptors();}
+bool Bridge::restartPending() const{
+ for(auto it=m_startupPreferences.cbegin();it!=m_startupPreferences.cend();++it)
+  if(setting(it.key(),SettingsSchema::descriptor(it.key()).value("defaultValue"))!=it.value())return true;
+ return false;
+}
+void Bridge::restartApplication(){
+ if(!restartPending())return;
+ m_settings.sync();
+ if(m_settings.status()!=QSettings::NoError){emit notification(tr("Unable to save settings"));return;}
+ QStringList args{"--restart-from",QString::number(QCoreApplication::applicationPid())};
+ const auto original=QCoreApplication::arguments();
+ const auto profile=original.indexOf("--test-profile");
+ if(profile>=0&&profile+1<original.size())args<<original[profile]<<QDir(original[profile+1]).absolutePath();
+ if(QProcess::startDetached(QCoreApplication::applicationFilePath(),args))QCoreApplication::quit();
+ else emit notification(tr("Unable to restart the app"));
+}
 QVariantList Bridge::appearanceDescriptors()const{return AppearanceConfig::descriptors();}
 bool Bridge::appearanceInherited(QString scope)const{return scope!="global"&&m_settings.value("appearance/"+scope+"/inherit",true).toBool();}
 QVariantMap Bridge::appearanceConfig(QString scope)const{

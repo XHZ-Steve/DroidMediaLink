@@ -3,6 +3,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import QtQuick.Effects
 import DroidMediaLink 1.0 as NativeFrame
 
 import "Icons.js" as Icons
@@ -106,7 +107,11 @@ ApplicationWindow {
             Behavior on color {ColorAnimation{duration:design.fast}}
         }
         contentItem:Text {text:a.iconName?Icons.glyph(a.iconName):a.text;font.family:a.iconName?lucide.name:root.font.family;font.pixelSize:a.iconName?20:design.body;font.weight:a.primary?Font.DemiBold:Font.Medium;color:a.primary?design.accentText:a.checked?root.accent:root.fg;opacity:a.enabled?1:.35;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter}
-        ToolTip.visible:iconName.length>0&&hovered;ToolTip.delay:650;ToolTip.text:text
+        GlassHint {
+            parent:a;text:a.text;visible:a.iconName.length>0&&a.hovered;delay:650
+            light:root.light;liquid:root.liquidStyle;motion:root.motion;foreground:root.fg;surface:design.elevated
+            materialSource:a.Window.window===trayWindow?trayBackdrop:a.Window.window===floating?floatingBackdrop:ambient
+        }
     }
     component WindowButton: Button {
         id: captionButton
@@ -115,7 +120,11 @@ ApplicationWindow {
         icon.source:"qrc:/icons/window/"+iconName+".svg";icon.width:14;icon.height:14;icon.color:root.fg
         hoverEnabled:true;Accessible.name:text;transformOrigin:Item.Center
         background:Rectangle{radius:8;color:captionButton.down?design.pressed:captionButton.hovered?design.hover:"transparent";border.width:captionButton.visualFocus?1:0;border.color:root.accent}
-        ToolTip.visible:hovered;ToolTip.delay:650;ToolTip.text:text
+        GlassHint {
+            parent:captionButton;text:captionButton.text;visible:captionButton.hovered;delay:650
+            light:root.light;liquid:root.liquidStyle;motion:root.motion;foreground:root.fg;surface:design.elevated
+            materialSource:ambient
+        }
     }
     component Field: TextField {
         id:field
@@ -214,11 +223,22 @@ ApplicationWindow {
     }
     Rectangle {anchors.fill:parent;color:root.bg;opacity:root.backgroundOpacity;visible:root.highContrast||GraphicsInfo.api===GraphicsInfo.Software}
     AmbientScene {id:ambient;anchors.fill:parent;visible:!root.highContrast;opacity:root.backgroundOpacity}
+    Item {
+        id:homeStage
+        anchors.fill:parent
+        visible:root.page===0||root.stageProgress<.72
+        layer.enabled:visible&&root.stageProgress>0&&GraphicsInfo.api!==GraphicsInfo.Software&&!root.highContrast
+        layer.smooth:true
+        layer.effect:MultiEffect {
+            blurEnabled:true
+            blurMax:32
+            blur:root.stage(0,.48)*.72
+            autoPaddingEnabled:false
+        }
     ColumnLayout {
         id:canvasLayout
         readonly property real topInset:Math.max(40,root.canvasMargin)
         readonly property real bottomInset:Math.max(28,root.canvasMargin*.65)
-        visible:root.page===0||root.stageProgress<.72
         x:root.canvasMargin*root.contentScale
         y:topInset*root.contentScale
         width:root.width/root.contentScale-2*root.canvasMargin
@@ -229,6 +249,7 @@ ApplicationWindow {
         NowPlayingCanvas {
                 Layout.fillWidth:true;Layout.fillHeight:true
                 id:homePage;controller:backend;settingsRevision:root.settingsRevision;rasterScale:root.contentScale
+                hintSource:ambient;liquidHints:root.liquidStyle
                 artworkDeparture:root.fall(.015,.64);metadataDeparture:root.fall(.06,.68);lyricsDeparture:root.fall(.10,.72)
                 light:root.light;motion:root.motion;lyricsEnabled:root.showLyrics
                 textColor:root.fg;secondaryColor:root.muted;accent:root.accent
@@ -274,6 +295,7 @@ ApplicationWindow {
             }
         }
         }
+    }
     }
     SettingsPage {
         id:settingsPage;objectName:"settingsPage";highContrast:root.highContrast;materialSource:ambient;controller:backend;settingsRevision:root.settingsRevision;light:root.light;motion:root.motion;accent:root.accent;textColor:root.fg;rasterScale:root.contentScale

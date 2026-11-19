@@ -10,6 +10,9 @@ Item {
     property color ambientColor:"#527a9c"
     property real cornerRadius:0
     property real rasterScale:1
+    property Item hintSource:null
+    property bool light:false
+    property bool liquidHints:true
     property url source
     property bool motion: true
     property int transitionDuration:340
@@ -63,8 +66,16 @@ Item {
     }
     }
     Text{anchors.centerIn:parent;visible:!cover.ready;text:"♪";font.family:"Segoe UI";font.pixelSize:Math.max(40,Math.min(80,cover.width*.2));color:cover.ambientColor;opacity:.5}
-    Button{objectName:"coverLayoutSwitch";anchors.fill:parent;text:cover.actionText;Accessible.name:text;hoverEnabled:true;background:Rectangle{color:"transparent";radius:Math.max(4,Math.min(cover.cornerRadius,width/2,height/2));border.width:parent.visualFocus?2:0;border.color:cover.ambientColor}contentItem:Item{}
- onClicked:cover.activated();ToolTip.visible:hovered;ToolTip.delay:900;ToolTip.text:text}
+    Button{
+        id:layoutSwitch;objectName:"coverLayoutSwitch";anchors.fill:parent;text:cover.actionText;Accessible.name:text;hoverEnabled:true
+        background:Rectangle{color:"transparent";radius:Math.max(4,Math.min(cover.cornerRadius,width/2,height/2));border.width:parent.visualFocus?2:0;border.color:cover.ambientColor}
+        contentItem:Item{}
+        onClicked:cover.activated()
+        GlassHint {
+            parent:layoutSwitch;visible:layoutSwitch.hovered;text:layoutSwitch.text;delay:900
+            materialSource:cover.hintSource;light:cover.light;liquid:cover.liquidHints;motion:cover.motion
+        }
+    }
     NumberAnimation{id:fade;target:cover;property:"blend";from:0;to:1;duration:cover.transitionDuration;easing.type:Easing.InOutCubic}
     Component.onCompleted:load()
 }

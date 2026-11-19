@@ -27,6 +27,16 @@ class LyricsEngineTests {
 public:
  static int run(){
   QTemporaryDir files;QSettings saved;saved.setValue("preferences/lyrics/online",false);saved.setValue("preferences/lyrics/autoMatchMigration",true);saved.sync();Bridge bridge;
+  if(bridge.restartPending())return 132;
+  bridge.setSetting("settings/groupFill","#2d597caa");
+  if(bridge.restartPending()||bridge.setting("settings/groupFill").toString()!="#2d597caa")return 133;
+  bridge.setSetting("graphics/msaa",4);
+  if(!bridge.restartPending())return 134;
+  bridge.setSetting("graphics/vsync",false);
+  bridge.setSetting("graphics/msaa",0);
+  if(!bridge.restartPending())return 135;
+  bridge.setSetting("graphics/vsync",true);
+  if(bridge.restartPending())return 136;
   bridge.setSetting("home/windowBackgroundOpacity",.45);
   if(bridge.setting("home/windowBackgroundOpacity",1.).toDouble()!=.45)return 122;
   bridge.setSetting("home/artworkScale",1.25);

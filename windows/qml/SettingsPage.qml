@@ -25,6 +25,31 @@ Item {
     property bool componentReady: false
     property real rasterScale:1
     property real entranceOffset:0
+    readonly property bool groupGlass: !highContrast&&value("appearance/style","liquid")==="liquid"
+    readonly property color groupFill: {
+        const stored=value("settings/groupFill","auto")
+        return stored==="auto"?Qt.rgba(accent.r,accent.g,accent.b,light?.12:.105):stored
+    }
+    readonly property color groupBorder: {
+        const stored=value("settings/groupBorder","auto")
+        return stored==="auto"?Qt.rgba(accent.r,accent.g,accent.b,light?.30:.24):stored
+    }
+    readonly property color pinnedSurface:Qt.tint(tokens.elevated,Qt.rgba(groupFill.r,groupFill.g,groupFill.b,groupFill.a*.85))
+    readonly property bool restartPending:controller?.restartPending===true
+    function offerHint(button){
+        if(!settingsHint)return
+        if(button.hint.length&&button.visible&&(button.hovered||button.hintOnFocus&&button.visualFocus)){
+            if(settingsHint.parent!==button)settingsHint.visible=false
+            settingsHint.parent=button
+            settingsHint.text=button.hint
+            settingsHint.visible=true
+        }else if(settingsHint.parent===button)settingsHint.visible=false
+    }
+    GlassHint {
+        id:settingsHint;objectName:"settingsGlassHint";parent:page
+        materialSource:page.materialSource;liquid:page.groupGlass
+        light:page.light;motion:page.motion;foreground:page.textColor;surface:tokens.elevated
+    }
     component SettingsScroller: Control {
         id:scroller
         default property alias scrollContent:viewport.flickableData
@@ -149,7 +174,7 @@ Item {
             if(sectionJumpPending){sectionJumpPending=false;sectionJump.restart()}
             else if(!sectionJump.running)restoreScroll.restart()
         }
-        else {categoryMotion.stop();contentScroll.opacity=1;categoryOffset.y=0}
+        else {settingsHint.visible=false;categoryMotion.stop();contentScroll.opacity=1;categoryOffset.y=0}
     }
     onActiveSectionChanged: {if(activeGroup===4)appearanceScope=scopeFor(activeSection)}
     onAppearanceScopeChanged: {
@@ -219,7 +244,31 @@ Item {
         for(let i=0;i<children.length;i++){const match=findNamed(children[i],name);if(match)return match}
         return null
     }
-    function revealItem(target){if(!target||!contentScroll.contentItem)return;const point=target.mapToItem(contentColumn,0,0);const flick=contentScroll.contentItem;flick.contentY=Math.max(0,Math.min(point.y-12,Math.max(0,flick.contentHeight-flick.height)))}
+    function contentTop(item){
+        let top=0
+        for(let node=item;node&&node!==contentColumn;node=node.parent)top+=node.y
+        return top
+    }
+    function headerSpace(item){
+        let height=0
+        for(let node=item.parent;node&&node!==contentColumn;node=node.parent)height+=node.stickyHeaderHeight||0
+        return height
+    }
+    function pinOffset(group,header,inset){
+        const scroll=contentScroll.contentItem.contentY
+        return Math.max(0,Math.min(scroll+inset-contentTop(group)-header.y,group.height-header.y-header.height))
+    }
+    function revealItem(target){
+        if(!target||!contentScroll.contentItem)return
+        const point=target.mapToItem(contentColumn,0,0)
+        const flick=contentScroll.contentItem
+        flick.contentY=Math.max(0,Math.min(point.y-12-headerSpace(target),Math.max(0,flick.contentHeight-flick.height)))
+    }
+    function returnToHeader(group,header,inset){
+        const flick=contentScroll.contentItem
+        flick.cancelFlick()
+        flick.contentY=Math.max(0,contentTop(group)+header.y-inset)
+    }
     function scrollToKey(key){
         const container=findNamed(contentColumn,"section-"+activeGroup+"/"+activeSection)||contentColumn
         let target=String(key).indexOf("@")===0?container:findNamed(container,"setting-"+key)
@@ -284,6 +333,12 @@ Item {
         id:button
         property bool capsule: false
         property bool frosted: false
+        property string hint: ""
+        property bool hintOnFocus: false
+        onHoveredChanged:page.offerHint(button)
+        onVisualFocusChanged:page.offerHint(button)
+        onHintChanged:page.offerHint(button)
+        onVisibleChanged:if(!visible&&settingsHint.parent===button)settingsHint.visible=false
         implicitHeight:36;implicitWidth:Math.max(36,contentItem.implicitWidth+22)
         font.family:tokens.family;font.pixelSize:tokens.body
         hoverEnabled:true
@@ -366,7 +421,7 @@ Item {
         RowLayout {
             anchors.fill:parent;anchors.leftMargin:8;anchors.rightMargin:4;spacing:8
             Label{Layout.fillWidth:true;text:row.descriptor.label||row.key;textFormat:Text.PlainText;color:page.textColor;font.family:tokens.family;font.pixelSize:tokens.body;elide:Text.ElideRight;Accessible.ignored:true}
-            FlatButton {visible:!!row.descriptor.help;text:Icons.glyph("info");font.family:lucide.name;font.pixelSize:16;implicitWidth:30;Accessible.name:qsTr("Help for %1").arg(row.descriptor.label);ToolTip.visible:hovered||activeFocus;ToolTip.text:row.descriptor.help||""}
+            FlatButton {visible:!!row.descriptor.help;text:Icons.glyph("info");font.family:lucide.name;font.pixelSize:16;implicitWidth:30;Accessible.name:qsTr("Help for %1").arg(row.descriptor.label);hintOnFocus:true;hint:row.descriptor.help||""}
             Toggle{objectName:"editor-"+row.key;visible:row.kind==="bool";enabled:row.editable;checked:row.currentValue===true;Accessible.name:row.descriptor.label;onClicked:row.commit(checked)}
             RowLayout {
                 visible:row.kind==="real"||row.kind==="number"||row.kind==="int"
@@ -421,7 +476,7 @@ Item {
                 onEditingFinished:row.commit(text.trim())
             }
             Label{visible:row.kind==="action"&&(row.key==="action/clearCoverArtCache"||row.key==="action/clearLyricsCache");text:row.cacheSize();color:tokens.secondaryText;Layout.preferredWidth:72;horizontalAlignment:Text.AlignRight}
-            FlatButton{visible:row.kind==="directory";text:row.currentValue||qsTr("Default folder");Layout.maximumWidth:Math.min(260,page.width*.43);Accessible.name:row.descriptor.label;ToolTip.visible:hovered;ToolTip.text:text;onClicked:cacheFolder.open()}
+            FlatButton{visible:row.kind==="directory";text:row.currentValue||qsTr("Default folder");Layout.maximumWidth:Math.min(260,page.width*.43);Accessible.name:row.descriptor.label;hint:text;onClicked:cacheFolder.open()}
             FlatButton {visible:row.kind==="action";text:row.descriptor.buttonLabel||qsTr("Open");Accessible.name:row.descriptor.label;onClicked:page.runAction(row.descriptor)}
             Label {visible:row.kind==="readonly";Layout.maximumWidth:Math.min(260,page.width*.45);text:String(row.currentValue||row.descriptor.value||"");textFormat:Text.PlainText;color:tokens.secondaryText;elide:Text.ElideRight;Accessible.name:row.descriptor.label}
             Item{Layout.preferredWidth:30;Layout.preferredHeight:32
@@ -430,7 +485,7 @@ Item {
                     enabled:row.editable
                     opacity:rowHover.hovered||row.activeFocus||visualFocus?1:0
                     text:Icons.glyph("rotate-ccw");font.family:lucide.name;font.pixelSize:15
-                    Accessible.name:qsTr("Reset %1").arg(row.descriptor.label);ToolTip.visible:hovered;ToolTip.text:qsTr("Reset %1").arg(row.descriptor.label)
+                    Accessible.name:qsTr("Reset %1").arg(row.descriptor.label);hint:qsTr("Reset %1").arg(row.descriptor.label)
                     onClicked:{row.hasPending=false;numericCommit.stop();if(row.appearance)page.controller.resetAppearanceValue(row.scope,row.key);else page.controller.resetSetting(row.key)}
                 }
             }
@@ -492,7 +547,7 @@ Item {
                             Label{Layout.fillWidth:true;text:providerPanel.detail(providerRow.modelData);textFormat:Text.PlainText;color:tokens.secondaryText;font.pixelSize:tokens.caption;elide:Text.ElideRight}
                         }
                         Label{visible:!!text;text:providerPanel.covers&&providerRow.modelData.status==="empty"?qsTr("No matching cover"):page.providerStatus(providerRow.modelData.status||"unknown");color:providerRow.modelData.status==="available"?tokens.success:providerRow.modelData.status==="error"?tokens.danger:tokens.secondaryText;font.pixelSize:tokens.caption}
-                        FlatButton{objectName:(providerPanel.covers?"cover-provider-test-":"provider-test-")+providerRow.modelData.id;text:qsTr("Test");enabled:!providerPanel.busy(providerRow.modelData.status);Accessible.name:qsTr("Test %1").arg(providerRow.modelData.name);ToolTip.visible:hovered&&!!providerRow.modelData.lastError;ToolTip.text:providerRow.modelData.lastError||"";onClicked:providerPanel.covers?page.controller.testCoverProvider(providerRow.modelData.id):page.controller.testLyricProvider(providerRow.modelData.id)}
+                        FlatButton{objectName:(providerPanel.covers?"cover-provider-test-":"provider-test-")+providerRow.modelData.id;text:qsTr("Test");enabled:!providerPanel.busy(providerRow.modelData.status);Accessible.name:qsTr("Test %1").arg(providerRow.modelData.name);hint:providerRow.modelData.lastError||"";onClicked:providerPanel.covers?page.controller.testCoverProvider(providerRow.modelData.id):page.controller.testLyricProvider(providerRow.modelData.id)}
                         Toggle{objectName:(providerPanel.covers?"cover-provider-enabled-":"provider-enabled-")+providerRow.modelData.id;checked:page.value(providerRow.enabledKey,providerRow.modelData.enabled!==false)===true;Accessible.name:qsTr("Enable %1").arg(providerRow.modelData.name);onClicked:page.save(providerRow.enabledKey,checked)}
                     }
                 }
@@ -520,7 +575,7 @@ Item {
                     spacing:10
                     Text{text:Icons.glyph("smartphone");font.family:lucide.name;font.pixelSize:22;color:page.accent}
                     Label{text:deviceRow.modelData.name||qsTr("Android device");textFormat:Text.PlainText;color:page.textColor;Layout.fillWidth:true;elide:Text.ElideRight}
-                    FlatButton {visible:deviceRow.modelData.paired===true;text:Icons.glyph("unlink");font.family:lucide.name;implicitWidth:36;Accessible.name:qsTr("Forget device");ToolTip.visible:hovered;ToolTip.text:qsTr("Forget device");onClicked:page.forgetDeviceRequested(deviceRow.modelData.url)}
+                    FlatButton {visible:deviceRow.modelData.paired===true;text:Icons.glyph("unlink");font.family:lucide.name;implicitWidth:36;Accessible.name:qsTr("Forget device");hint:qsTr("Forget device");onClicked:page.forgetDeviceRequested(deviceRow.modelData.url)}
                     Text{text:Icons.glyph("chevron-right");font.family:lucide.name;font.pixelSize:18;color:tokens.secondaryText}
                 }
             }
@@ -552,8 +607,8 @@ Item {
             Choice{objectName:presetPanel.objectPrefix+"Choice";Layout.fillWidth:true;Layout.maximumWidth:350;model:presetPanel.rows;Accessible.name:presetPanel.appearance?qsTr("Appearance preset"):qsTr("Lyric style preset");currentIndex:{for(let i=0;i<presetPanel.rows.length;i++)if(presetPanel.rows[i].value===presetPanel.selectedName)return i;return -1}onActivated:if(currentIndex>=0){const name=presetPanel.rows[currentIndex].value;if(presetPanel.appearance){page.selectedAppearancePresetName=name;page.controller.applyAppearancePreset(name)}else{page.selectedPresetName=name;page.controller.applyLyricPreset(name)}}}
             Item{Layout.fillWidth:true}
             FlatButton{objectName:presetPanel.objectPrefix+"Save";text:qsTr("Save as");frosted:true;onClicked:page.editPresetName("save",presetPanel.appearance)}
-            FlatButton{objectName:presetPanel.objectPrefix+"Rename";text:Icons.glyph("pencil");font.family:lucide.name;implicitWidth:36;enabled:!!presetPanel.selectedName&&!presetPanel.builtIn;Accessible.name:qsTr("Rename preset");ToolTip.visible:hovered;ToolTip.text:qsTr("Rename preset");onClicked:page.editPresetName("rename",presetPanel.appearance)}
-            FlatButton{objectName:presetPanel.objectPrefix+"Delete";text:Icons.glyph("trash-2");font.family:lucide.name;implicitWidth:36;enabled:!!presetPanel.selectedName&&!presetPanel.builtIn;Accessible.name:qsTr("Delete preset");ToolTip.visible:hovered;ToolTip.text:qsTr("Delete preset");onClicked:{page.appearancePresetDialog=presetPanel.appearance;presetDeleteDialog.open()}}
+            FlatButton{objectName:presetPanel.objectPrefix+"Rename";text:Icons.glyph("pencil");font.family:lucide.name;implicitWidth:36;enabled:!!presetPanel.selectedName&&!presetPanel.builtIn;Accessible.name:qsTr("Rename preset");hint:qsTr("Rename preset");onClicked:page.editPresetName("rename",presetPanel.appearance)}
+            FlatButton{objectName:presetPanel.objectPrefix+"Delete";text:Icons.glyph("trash-2");font.family:lucide.name;implicitWidth:36;enabled:!!presetPanel.selectedName&&!presetPanel.builtIn;Accessible.name:qsTr("Delete preset");hint:qsTr("Delete preset");onClicked:{page.appearancePresetDialog=presetPanel.appearance;presetDeleteDialog.open()}}
         }
         Flow {
             Layout.fillWidth:true;spacing:6
@@ -572,19 +627,30 @@ Item {
         required property int groupIndex
         required property int sectionIndex
         required property var subgroupData
+        required property real sectionHeaderHeight
         property bool collapsed:page.subgroupCollapsed(groupIndex,sectionIndex,subgroupData.key)
+        readonly property real stickyHeaderHeight:subgroupBar.height
+        readonly property real pinnedOffset:visible&&!collapsed?page.pinOffset(subgroup,subgroupBar,sectionHeaderHeight):0
         property bool expandedOnce:false
         readonly property bool rowsLoaded:!collapsed||expandedOnce
         Component.onCompleted:if(!collapsed)expandedOnce=true
         onCollapsedChanged:if(!collapsed)expandedOnce=true
         objectName:"subgroup-"+groupIndex+"/"+sectionIndex+"/"+subgroupData.key
         Layout.fillWidth:true;spacing:2
-        FlatButton {
+        Item {
+          id:subgroupBar;Layout.fillWidth:true;implicitHeight:36;z:2
+          transform:Translate{y:subgroup.pinnedOffset}
+          Rectangle {anchors.fill:parent;visible:subgroup.pinnedOffset>0;radius:10;color:page.pinnedSurface}
+          FlatButton {
             id:subgroupHeading;objectName:"subgroup-heading-"+subgroup.groupIndex+"/"+subgroup.sectionIndex+"/"+subgroup.subgroupData.key
-            Layout.fillWidth:true;text:subgroup.subgroupData.label;implicitHeight:36
+            anchors.fill:parent;text:subgroup.subgroupData.label;implicitHeight:36
             Accessible.description:subgroup.collapsed?qsTr("Collapsed"):qsTr("Expanded")
-            onClicked:page.setSubgroupExpanded(subgroup.groupIndex,subgroup.sectionIndex,subgroup.subgroupData.key,subgroup.collapsed)
+            onClicked:{
+                if(subgroup.pinnedOffset>0)page.returnToHeader(subgroup,subgroupBar,subgroup.sectionHeaderHeight)
+                page.setSubgroupExpanded(subgroup.groupIndex,subgroup.sectionIndex,subgroup.subgroupData.key,subgroup.collapsed)
+            }
             contentItem:RowLayout{Label{Layout.fillWidth:true;text:subgroupHeading.text;textFormat:Text.PlainText;color:tokens.secondaryText;font.family:tokens.family;font.pixelSize:tokens.body;font.weight:Font.Medium;elide:Text.ElideRight}Text{text:Icons.glyph("chevron-down");font.family:lucide.name;font.pixelSize:14;color:tokens.secondaryText;rotation:subgroup.collapsed?-90:0;Behavior on rotation{NumberAnimation{duration:tokens.fast}}}}
+          }
         }
         Item {
             Layout.fillWidth:true
@@ -598,7 +664,7 @@ Item {
             }
         }
     }
-    component SectionBlock: ColumnLayout {
+    component SectionBlock: Item {
         id:sectionBlock
         required property int sectionIndex
         property int groupIndex:page.activeGroup
@@ -607,35 +673,53 @@ Item {
         property bool hasAdvanced:appearance||allRows.some(function(row){return row.advanced})
         property bool advanced:page.advancedFor(groupIndex,sectionIndex)
         property bool collapsed:page.isCollapsed(groupIndex,sectionIndex)
+        readonly property real stickyHeaderHeight:sectionBar.height
+        readonly property real pinnedOffset:visible&&!collapsed?page.pinOffset(sectionBlock,sectionBar,0):0
         property bool specialized:(groupIndex===2&&sectionIndex===0)||(groupIndex===1&&(sectionIndex===0||sectionIndex===1))||(groupIndex===3&&(sectionIndex===0||sectionIndex===6))||appearance
         objectName:"section-"+groupIndex+"/"+sectionIndex
-        Layout.fillWidth:true;spacing:4;visible:specialized||allRows.length>0
-        RowLayout {
-            Layout.fillWidth:true;Layout.topMargin:12;spacing:2
+        Layout.fillWidth:true;implicitHeight:sectionLayout.implicitHeight;visible:specialized||allRows.length>0
+        Rectangle {
+            anchors.fill:parent
+            radius:14;color:page.groupFill
+            border.width:page.groupBorder.a>0?1:0;border.color:page.groupBorder
+        }
+        ColumnLayout {
+        id:sectionLayout;width:parent.width;height:implicitHeight;spacing:4
+        Item {
+          id:sectionBar;Layout.fillWidth:true;Layout.topMargin:5;implicitHeight:40;z:3
+          transform:Translate{y:sectionBlock.pinnedOffset}
+          Rectangle {anchors.fill:parent;visible:sectionBlock.pinnedOffset>0;radius:12;color:page.pinnedSurface;border.width:1;border.color:page.groupBorder}
+          RowLayout {
+            anchors.fill:parent;anchors.leftMargin:6;anchors.rightMargin:6;spacing:2
             FlatButton {
                 id:sectionHeading;objectName:"section-heading-"+sectionBlock.groupIndex+"/"+sectionBlock.sectionIndex
                 Layout.fillWidth:true;text:page.sectionTitle(sectionBlock.groupIndex,sectionBlock.sectionIndex);implicitHeight:40
                 Accessible.description:sectionBlock.collapsed?qsTr("Collapsed"):qsTr("Expanded")
-                onClicked:{page.activeSection=sectionBlock.sectionIndex;page.setSectionExpanded(sectionBlock.groupIndex,sectionBlock.sectionIndex,sectionBlock.collapsed)}
+                onClicked:{
+                    if(sectionBlock.pinnedOffset>0)page.returnToHeader(sectionBlock,sectionBar,0)
+                    page.activeSection=sectionBlock.sectionIndex
+                    page.setSectionExpanded(sectionBlock.groupIndex,sectionBlock.sectionIndex,sectionBlock.collapsed)
+                }
                 contentItem:RowLayout{Label{Layout.fillWidth:true;text:sectionHeading.text;textFormat:Text.PlainText;color:page.textColor;font.family:tokens.family;font.pixelSize:16;font.weight:Font.DemiBold;elide:Text.ElideRight}Text{text:Icons.glyph("chevron-down");font.family:lucide.name;font.pixelSize:16;color:tokens.secondaryText;rotation:sectionBlock.collapsed?-90:0;Behavior on rotation{NumberAnimation{duration:tokens.fast;easing.type:Easing.OutCubic}}}}
             }
-            FlatButton{text:Icons.glyph("rotate-ccw");font.family:lucide.name;implicitWidth:32;Accessible.name:qsTr("Reset %1").arg(page.sectionTitle(sectionBlock.groupIndex,sectionBlock.sectionIndex));ToolTip.visible:hovered;ToolTip.text:qsTr("Restore group defaults");onClicked:page.resetSection(sectionBlock.groupIndex,sectionBlock.sectionIndex,page.scopeFor(sectionBlock.sectionIndex))}
+            FlatButton{text:Icons.glyph("rotate-ccw");font.family:lucide.name;implicitWidth:32;Accessible.name:qsTr("Reset %1").arg(page.sectionTitle(sectionBlock.groupIndex,sectionBlock.sectionIndex));hint:qsTr("Restore group defaults");onClicked:page.resetSection(sectionBlock.groupIndex,sectionBlock.sectionIndex,page.scopeFor(sectionBlock.sectionIndex))}
+          }
         }
         Item {
-            Layout.fillWidth:true
+            Layout.fillWidth:true;Layout.bottomMargin:8
             property real reveal:sectionBlock.collapsed?0:1
             implicitHeight:sectionInner.implicitHeight*reveal;opacity:reveal;visible:reveal>0;clip:reveal<1
             onRevealChanged:if(reveal===1&&page.highlightedKey)jumpTimer.restart()
             Behavior on reveal{NumberAnimation{duration:tokens.fast;easing.type:Easing.OutCubic}}
             ColumnLayout {
-                id:sectionInner;x:16;width:Math.max(0,parent.width-16);height:implicitHeight;spacing:3
+                id:sectionInner;x:16;width:Math.max(0,parent.width-28);height:implicitHeight;spacing:3
                 Loader{Layout.fillWidth:true;active:sectionBlock.groupIndex===1&&(sectionBlock.sectionIndex===0||sectionBlock.sectionIndex===1);sourceComponent:DevicePanel{sectionIndex:sectionBlock.sectionIndex}}
                 Loader{Layout.fillWidth:true;active:sectionBlock.groupIndex===3&&sectionBlock.sectionIndex===0;sourceComponent:ProviderPanel{}}
                 Loader{Layout.fillWidth:true;active:sectionBlock.groupIndex===2&&sectionBlock.sectionIndex===0;sourceComponent:ProviderPanel{covers:true}}
                 Loader{Layout.fillWidth:true;active:(sectionBlock.groupIndex===3&&sectionBlock.sectionIndex===6)||(sectionBlock.groupIndex===4&&sectionBlock.sectionIndex===0);sourceComponent:LyricPresetsPanel{appearance:sectionBlock.groupIndex===4}}
                 Loader{Layout.fillWidth:true;active:sectionBlock.appearance;sourceComponent:AppearancePanel{sectionIndex:sectionBlock.sectionIndex}}
                 Repeater {model:page.rowsFor(sectionBlock.groupIndex,sectionBlock.sectionIndex).filter(function(row){return !row.subgroup});ParameterRow{required property var modelData;descriptor:modelData;sectionIndex:sectionBlock.sectionIndex}}
-                Repeater {model:page.subgroupsFor(sectionBlock.groupIndex,sectionBlock.sectionIndex);LyricSubgroup{required property var modelData;groupIndex:sectionBlock.groupIndex;sectionIndex:sectionBlock.sectionIndex;subgroupData:modelData}}
+                Repeater {model:page.subgroupsFor(sectionBlock.groupIndex,sectionBlock.sectionIndex);LyricSubgroup{required property var modelData;groupIndex:sectionBlock.groupIndex;sectionIndex:sectionBlock.sectionIndex;subgroupData:modelData;sectionHeaderHeight:sectionBlock.stickyHeaderHeight}}
                 Repeater {model:sectionBlock.appearance?page.parameterDescriptors(sectionBlock.sectionIndex,sectionBlock.advanced):[];ParameterRow{required property var modelData;descriptor:modelData;appearance:true;sectionIndex:sectionBlock.sectionIndex;scope:page.scopeFor(sectionBlock.sectionIndex)}}
                 RowLayout {
                     visible:sectionBlock.hasAdvanced;Layout.fillWidth:true;Layout.topMargin:4
@@ -643,6 +727,7 @@ Item {
                     Item{Layout.fillWidth:true}
                 }
             }
+        }
         }
     }
 
@@ -665,6 +750,17 @@ Item {
             Layout.fillWidth:true;spacing:12
             FlatButton{objectName:"settingsBack";text:Icons.glyph("arrow-left");font.family:lucide.name;implicitWidth:38;implicitHeight:38;capsule:true;frosted:true;Accessible.name:qsTr("Back");onClicked:page.closeRequested()}
             Label{text:qsTr("Settings");font.family:tokens.family;font.pixelSize:tokens.heading;color:page.textColor;Layout.fillWidth:true}
+            FlatButton {
+                objectName:"restartSettingsInfo";visible:page.restartPending
+                text:Icons.glyph("info");font.family:lucide.name;font.pixelSize:16
+                hint:qsTr("Some settings need a restart to take effect.");hintOnFocus:true
+                Accessible.name:hint
+            }
+            FlatButton {
+                objectName:"restartSettingsNow";visible:page.restartPending
+                text:qsTr("Restart now");capsule:true;frosted:true;checked:true
+                onClicked:page.controller.restartApplication()
+            }
         }
         Field{id:searchField;objectName:"settingsSearch";Layout.fillWidth:true;placeholderText:qsTr("Search settings");Accessible.name:placeholderText}
         Flow {

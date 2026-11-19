@@ -55,6 +55,7 @@ class Bridge : public QObject {
  Q_PROPERTY(QVariantList devices READ devices NOTIFY changed)
  Q_PROPERTY(QVariantList settingsCatalog READ settingsCatalog CONSTANT)
  Q_PROPERTY(QVariantList appearanceDescriptors READ appearanceDescriptors CONSTANT)
+ Q_PROPERTY(bool restartPending READ restartPending NOTIFY settingsChanged)
  Q_PROPERTY(QString ambientAccent READ ambientAccent NOTIFY changed)
  Q_PROPERTY(QString activeDeviceUrl READ activeDeviceUrl NOTIFY changed)
  Q_PROPERTY(QString accent READ accent NOTIFY changed)
@@ -110,6 +111,8 @@ public:
  double volume()const{const auto maximum=m_media.value("maxVolume").toDouble();return maximum>0?qBound(0.,m_media.value("volume").toDouble()/maximum,1.):0.;}
  QVariantList devices()const{return m_devices;}
  QVariantList settingsCatalog()const;
+ bool restartPending() const;
+ Q_INVOKABLE void restartApplication();
  QVariantList appearanceDescriptors()const;
  QString ambientAccent()const{return m_coverPalette.accent.name();}
  Q_INVOKABLE QVariantMap appearanceConfig(QString scope)const;
@@ -174,7 +177,7 @@ private:
  friend class LyricsEngineTests;
  friend class UpdateTests;
  QNetworkAccessManager m_updateNetwork;QJsonObject m_updateAsset;bool m_updateBusy=false;double m_updateProgress=-1;QPointer<QNetworkReply> m_updateReply;
- QSettings m_settings;QWebSocket m_socket;QNetworkAccessManager m_network;QUdpSocket m_mdns;
+ QSettings m_settings;QVariantMap m_startupPreferences;QWebSocket m_socket;QNetworkAccessManager m_network;QUdpSocket m_mdns;
  QVariantMap m_cacheUsage;QTimer m_cacheScan,m_smtcClock;bool m_cacheScanning=false,m_cacheRescan=false;
  QTimer m_progress,m_heartbeat,m_retry,m_pairTimeout;QElapsedTimer m_anchor,m_lastPong;
  void schedulePublishedCover();void fetchPublishedCover();

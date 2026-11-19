@@ -35,6 +35,7 @@
 #include <QRegularExpression>
 #include <QXmlStreamReader>
 #include <QCoreApplication>
+#include <QProcess>
 #include <QGuiApplication>
 #include <QPalette>
 #include <windows.h>
@@ -51,6 +52,8 @@ Bridge::Bridge(QObject *parent):QObject(parent),m_status(tr("Disconnected")){
  m_cacheScan.setSingleShot(true);m_cacheScan.setInterval(250);connect(&m_cacheScan,&QTimer::timeout,this,&Bridge::refreshCacheUsage);m_cacheScan.start();
  m_smtcClock.setInterval(1000);connect(&m_smtcClock,&QTimer::timeout,this,[this]{if(m_online&&playing()&&setting("media/smtc",true).toBool())updateNative();});m_smtcClock.start();
  for(auto defaults=factoryDefaults();auto key:defaults.keys())if(!m_settings.contains(key))m_settings.setValue(key,defaults.value(key).toVariant());
+ for(const auto &key:SettingsSchema::restartKeys())
+  m_startupPreferences[key]=setting(key,SettingsSchema::descriptor(key).value("defaultValue"));
  if(!m_settings.value("preferences/lyrics/autoMatchMigration",false).toBool()){m_settings.setValue("preferences/lyrics/online",true);m_settings.setValue("preferences/lyrics/autoMatch",true);m_settings.setValue("preferences/lyrics/autoMatchMigration",true);}
  if(!m_settings.contains("preferences/desktopLyrics/fontSize")&&m_settings.contains("preferences/lyricSize"))m_settings.setValue("preferences/desktopLyrics/fontSize",m_settings.value("preferences/lyricSize"));
  m_coverService=new CoverArtService(cachePath()+"/covers",this);m_publishedCover=new PublishedCoverArtProvider(this);m_publishedCoverDelay.setSingleShot(true);connect(&m_publishedCoverDelay,&QTimer::timeout,this,&Bridge::fetchPublishedCover);

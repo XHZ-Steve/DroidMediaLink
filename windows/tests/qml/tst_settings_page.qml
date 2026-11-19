@@ -19,6 +19,9 @@ Item {
         function renameLyricPreset(oldName,newName){lyricPresets=lyricPresets.map(function(row){return row.name===oldName?{name:newName,builtIn:false}:row});revision++}
         function deleteLyricPreset(name){lyricPresets=lyricPresets.filter(function(row){return row.name!==name});revision++}
         property int revision: 0
+        property bool restartPending:false
+        property int restartClicks:0
+        function restartApplication(){restartClicks++}
         property var values: ({motion:true})
         property var appearance: ({glassMotion:true,glassBlur:2.4,glassDispersion:.07})
         property bool inherit: true
@@ -150,6 +153,47 @@ Item {
             tryCompare(flick,"contentY",180)
             compare(page.activeGroup,4)
             controller.settingsCatalog=original
+        }
+        function test_active_section_and_subgroup_pin_and_can_collapse(){
+            const original=controller.settingsCatalog
+            const rows=Array.from({length:22},function(_,i){return {
+                key:"sticky-test-"+i,label:"TEST pinned row",group:3,section:2,
+                subgroup:"layout",type:"bool",defaultValue:false
+            }})
+            controller.settingsCatalog=original.concat(rows)
+            page.setSubgroupExpanded(3,2,"layout",true)
+            page.navigate(3,2)
+            const flick=findChild(page,"settingsScroll").contentItem
+            tryVerify(function(){return flick.contentHeight>flick.height+280})
+            const section=findChild(page,"section-3/2")
+            const sectionHeading=findChild(section,"section-heading-3/2")
+            const subgroup=findChild(section,"subgroup-3/2/layout")
+            const subgroupHeading=findChild(subgroup,"subgroup-heading-3/2/layout")
+            flick.contentY=page.contentTop(subgroup)+150
+            tryVerify(function(){return section.pinnedOffset>0&&subgroup.pinnedOffset>0})
+            fuzzyCompare(sectionHeading.mapToItem(flick,0,0).y,0,1)
+            fuzzyCompare(subgroupHeading.mapToItem(flick,0,0).y,section.stickyHeaderHeight,1)
+            mouseClick(subgroupHeading,30,18)
+            tryVerify(function(){return page.subgroupCollapsed(3,2,"layout")})
+            page.setSubgroupExpanded(3,2,"layout",true)
+            wait(30)
+            flick.contentY=page.contentTop(subgroup)+150
+            tryVerify(function(){return section.pinnedOffset>0})
+            mouseClick(sectionHeading,30,20)
+            tryVerify(function(){return page.isCollapsed(3,2)})
+            page.setSectionExpanded(3,2,true)
+            controller.settingsCatalog=original
+        }
+        function test_restart_controls_appear_only_when_pending(){
+            const action=findChild(page,"restartSettingsNow")
+            const info=findChild(page,"restartSettingsInfo")
+            verify(!action.visible&&!info.visible)
+            controller.restartPending=true
+            tryVerify(function(){return action.visible&&info.visible})
+            mouseClick(action)
+            compare(controller.restartClicks,1)
+            controller.restartPending=false
+            tryVerify(function(){return !action.visible&&!info.visible})
         }
         function test_switch_commits_actual_boolean(){
             const toggle=findChild(page,"editor-motion")

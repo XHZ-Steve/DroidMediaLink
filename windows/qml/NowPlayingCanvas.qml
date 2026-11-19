@@ -18,6 +18,8 @@ Item {
     property bool changingLayout: false
     readonly property int mode: {settingsRevision;return controller.setting("home/layout",0)}
     property real rasterScale:1
+    property Item hintSource:null
+    property bool liquidHints:true
     property real artworkDeparture:0
     property real metadataDeparture:0
     property real lyricsDeparture:0
@@ -177,6 +179,7 @@ Item {
     readonly property real artworkExtent:Math.max(1,Math.min(artworkLimit,nominalArtworkExtent*artworkScale))
     CoverArtwork {
         id: artwork;objectName:"heroArtwork"
+        hintSource:canvas.hintSource;light:canvas.light;liquidHints:canvas.liquidHints
         transform:Translate{y:canvas.artworkDeparture}
         width:canvas.coverGeometry.width;height:canvas.coverGeometry.height
         x:canvas.coverGeometry.x;y:canvas.coverGeometry.y

@@ -11,6 +11,10 @@
 #include <QSet>
 
 namespace SettingsSchema {
+inline const QStringList &restartKeys(){
+ static const QStringList keys{"language","graphics/msaa","graphics/vsync"};
+ return keys;
+}
 inline QVariantList options(const QStringList &values){QVariantList out;for(const auto &value:values)out<<QVariantMap{{"label",QCoreApplication::translate("Settings",value.toUtf8().constData())},{"value",value}};return out;}
 #include "LyricStyleSettings.h"
 inline QVariantList descriptors(){
@@ -100,6 +104,8 @@ inline QVariantList descriptors(){
  S("home/windowBackgroundOpacity","Window background opacity",4,1,"number",1.,0,1,.01);
  S("theme/brand","Brand",4,0,"enum","spotify",0,1,1,options({"spotify","netease","qqmusic","kugou","youtube","apple"}));
  S("appearance/style","Software style",4,2,"enum","liquid",0,1,1,options({"standard","liquid"}));
+ S("settings/groupFill","Settings group fill",4,2,"color","auto");
+ S("settings/groupBorder","Settings group border",4,2,"color","auto");
  S("motion","Animations",4,3,"bool",true);
  const auto restartHelp=QCoreApplication::translate("Settings","Takes effect after restarting the app.");
  S("graphics/msaa","Multisample antialiasing",5,0,"enum",0,0,8,1,(QVariantList{

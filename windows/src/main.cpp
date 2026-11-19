@@ -1,4 +1,5 @@
 #include "Bridge.h"
+#include "FactoryDefaults.h"
 #include "TrayPerformance.h"
 #include <QElapsedTimer>
 #include "../tests/RenderAudit.h"
@@ -79,8 +80,22 @@ int main(int argc,char **argv){
   QSettings::setDefaultFormat(QSettings::IniFormat);QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,profile);
   instanceName="DroidMediaLink.test."+QString::fromLatin1(QCryptographicHash::hash(profile.toUtf8(),QCryptographicHash::Sha256).toHex().left(16));
  }
+ const auto restartIndex=app.arguments().indexOf("--restart-from");
+ if(restartIndex>=0&&restartIndex+1<app.arguments().size()){
+  const auto parentPid=app.arguments()[restartIndex+1].toUInt();
+  if(parentPid&&parentPid!=GetCurrentProcessId()){
+   if(HANDLE parent=OpenProcess(SYNCHRONIZE,FALSE,parentPid)){
+    const auto result=WaitForSingleObject(parent,15000);
+    CloseHandle(parent);
+    if(result!=WAIT_OBJECT_0)return 1;
+   }
+  }
+ }
  QLocalSocket existing;existing.connectToServer(instanceName);if(existing.waitForConnected(150)){existing.write("activate");existing.waitForBytesWritten(200);return 0;}QLocalServer::removeServer(instanceName);QLocalServer server;server.listen(instanceName);
- QTranslator translator;QSettings settings;QString locale=settings.value("preferences/language",QLocale::system().name()).toString();if(translator.load("droidmedialink_"+locale,QCoreApplication::applicationDirPath()+"/translations"))app.installTranslator(&translator);
+ QTranslator translator;QSettings settings;
+ const auto defaultLanguage=factoryDefaults().value("preferences/language").toString(QLocale::system().name());
+ const auto locale=settings.value("preferences/language",defaultLanguage).toString();
+ if(translator.load("droidmedialink_"+locale,QCoreApplication::applicationDirPath()+"/translations"))app.installTranslator(&translator);
  if(profileIndex>=0){const auto args=app.arguments();int at=args.indexOf("--test-style");if(at>=0&&at+1<args.size())settings.setValue("preferences/appearance/style",args[at+1]=="liquid"?"liquid":"standard");if(args.contains("--test-light"))settings.setValue("preferences/light",true);}
  Bridge backend;DragRefreshGuard dragRefresh(backend);app.installNativeEventFilter(&dragRefresh);
  if(sceneBackend!=QStringLiteral("software")){
@@ -158,7 +173,7 @@ QObject::connect(&app,&QCoreApplication::aboutToQuit,&backend,[&]{settings.setVa
  }
  // All resources stay in the existing engine/window; the first render is invisible and non-activating.
  if(!arguments.contains("--surface"))QTimer::singleShot(0,trayPerformance,&TrayPerformance::prewarm);
- if(app.arguments().contains("--hidden")||backend.setting("startHidden",false).toBool()||arguments.contains("--tray-smoke")||latencyIndex>=0)window->hide();else if(surfaceIndex<0)window->show();return app.exec();
+ if(arguments.contains("--hidden")||(restartIndex<0&&backend.setting("startHidden",false).toBool())||arguments.contains("--tray-smoke")||latencyIndex>=0)window->hide();else if(surfaceIndex<0)window->show();return app.exec();
 }
 
 

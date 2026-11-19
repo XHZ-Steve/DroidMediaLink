@@ -44,8 +44,9 @@ Window {
  onWidthChanged:if(visible&&positionLoaded)saveGeometry.restart()
  onHeightChanged:if(visible&&positionLoaded)saveGeometry.restart()
  Timer{id:saveGeometry;interval:350;onTriggered:{window.controller.setSetting("lyricsX",window.x);window.controller.setSetting("lyricsY",window.y);window.controller.setSetting("desktopLyrics/windowWidth",window.width);window.controller.setSetting("desktopLyrics/windowHeight",window.height)}}
- Loader{anchors.fill:parent;active:window.visible&&window.pref("desktopLyrics/background",false)
+ Loader{id:backdropLoader;anchors.fill:parent;active:window.visible&&window.pref("desktopLyrics/background",false)
   sourceComponent:Item{
+   readonly property alias hintSource:ambient
    AmbientField{id:ambient;anchors.fill:parent;visible:false;primary:window.controller.ambientPrimary;secondary:window.controller.ambientSecondary;accent:window.controller.ambientAccent;deep:window.controller.ambientDeep;monochromeStrength:typeof window.controller.ambientMonochromeStrength === "number" ? window.controller.ambientMonochromeStrength : 0;motion:false;active:window.visible;configuration:window.controller.appearanceConfig("background")}
    GlassMaterial{anchors.fill:parent;sourceItem:ambient;active:window.visible;configuration:window.controller.appearanceConfig("desktop");glassEnabled:window.pref("appearance/style","liquid")==="liquid";motion:window.pref("motion",true);dark:true;fallbackColor:"#66222a35"}
   }
@@ -66,8 +67,14 @@ Window {
  Rectangle {anchors.fill:parent;radius:16;color:"transparent";border.width:1;border.color:"#7099afc5";opacity:window.controlsVisible?1:0;Behavior on opacity{NumberAnimation{duration:160}}}
  component EditButton:Button {
   id:button;font.family:"Segoe UI Variable Text";font.pixelSize:14;implicitHeight:32;implicitWidth:Math.max(30,contentItem.implicitWidth+10);leftPadding:5;rightPadding:5;hoverEnabled:true;Accessible.name:text
+  property string hint:""
   background:Rectangle{radius:8;color:button.down?"#35d4e4fa":button.hovered?"#20d4e4fa":"transparent";border.width:button.visualFocus?2:0;border.color:"#b8d5df"}
   contentItem:Text{text:button.text;color:"#eef2f5";font:button.font;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter;renderType:Text.NativeRendering}
+  GlassHint {
+   parent:button;text:button.hint;visible:button.hovered&&text.length>0
+   materialSource:backdropLoader.item?.hintSource??null
+   light:window.pref("light",false);liquid:window.pref("appearance/style","liquid")==="liquid";motion:window.pref("motion",true)
+  }
  }
  Item {id:bar;anchors.horizontalCenter:parent.horizontalCenter;y:6;width:Math.min(window.width-24,560);height:42;z:10
   visible:opacity>0;opacity:window.controlsVisible?1:0;Behavior on opacity{NumberAnimation{duration:160}}
@@ -78,10 +85,10 @@ Window {
    Label{visible:window.width>=460;text:String(window.pref("desktopLyrics/fontSize",36));color:"#eef2f5";horizontalAlignment:Text.AlignHCenter;Layout.preferredWidth:24;font.pixelSize:13}
    EditButton{visible:window.width>=460;text:"+";Accessible.name:qsTr("Increase font size");onClicked:window.controller.setSetting("desktopLyrics/fontSize",Math.min(96,window.pref("desktopLyrics/fontSize",36)+2))}
    Item{Layout.fillWidth:true}
-   EditButton{text:"−";Accessible.name:qsTr("Lyrics earlier");ToolTip.visible:hovered;ToolTip.text:qsTr("Lyrics earlier");onClicked:window.controller.setSetting("lyrics/offset",Math.max(-10000,window.pref("lyrics/offset",0)-100))}
+   EditButton{text:"−";Accessible.name:hint;hint:qsTr("Lyrics earlier");onClicked:window.controller.setSetting("lyrics/offset",Math.max(-10000,window.pref("lyrics/offset",0)-100))}
    Label{text:(window.pref("lyrics/offset",0)/1000).toFixed(1)+" s";color:"#eef2f5";font.pixelSize:12;Layout.preferredWidth:46;horizontalAlignment:Text.AlignHCenter}
-   EditButton{text:"+";Accessible.name:qsTr("Lyrics later");ToolTip.visible:hovered;ToolTip.text:qsTr("Lyrics later");onClicked:window.controller.setSetting("lyrics/offset",Math.min(10000,window.pref("lyrics/offset",0)+100))}
-   EditButton{text:Icons.glyph("settings");font.family:desktopIcons.name;font.pixelSize:16;Accessible.name:qsTr("Settings");ToolTip.visible:hovered;ToolTip.text:qsTr("Settings");onClicked:window.settingsRequested()}
+   EditButton{text:"+";Accessible.name:hint;hint:qsTr("Lyrics later");onClicked:window.controller.setSetting("lyrics/offset",Math.min(10000,window.pref("lyrics/offset",0)+100))}
+   EditButton{text:Icons.glyph("settings");font.family:desktopIcons.name;font.pixelSize:16;Accessible.name:hint;hint:qsTr("Settings");onClicked:window.settingsRequested()}
    EditButton{text:Icons.glyph("lock");font.family:desktopIcons.name;Accessible.name:qsTr("Lock");onClicked:{window.controller.setSetting("desktopClickThrough",true);window.editMode=false;window.hoverLatched=false}}
    EditButton{visible:window.width>=460;text:qsTr("Done");onClicked:{window.editMode=false;window.hoverLatched=false}}
    EditButton{text:"×";Accessible.name:qsTr("Close lyrics");onClicked:window.hideRequested()}

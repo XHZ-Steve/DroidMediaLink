@@ -133,6 +133,14 @@
 <context>
     <name>Bridge</name>
     <message>
+        <source>Unable to save settings</source>
+        <translation>无法保存设置</translation>
+    </message>
+    <message>
+        <source>Unable to restart the app</source>
+        <translation>无法重启应用</translation>
+    </message>
+    <message>
         <source>Track changed; try again</source>
         <translation>歌曲已切换，请重试</translation>
     </message>
@@ -873,6 +881,14 @@
 </context>
 <context>
     <name>Settings</name>
+    <message>
+        <source>Settings group fill</source>
+        <translation>设置分组底色</translation>
+    </message>
+    <message>
+        <source>Settings group border</source>
+        <translation>设置分组边框</translation>
+    </message>
     <message>
         <source>Import</source>
         <translation>导入</translation>
@@ -2216,6 +2232,14 @@
 </context>
 <context>
     <name>SettingsPage</name>
+    <message>
+        <source>Restart now</source>
+        <translation>现在重启</translation>
+    </message>
+    <message>
+        <source>Some settings need a restart to take effect.</source>
+        <translation>有一些选项需要重启以应用变更</translation>
+    </message>
     <message>
         <source>Balanced dark</source>
         <translation>暗色均衡</translation>
