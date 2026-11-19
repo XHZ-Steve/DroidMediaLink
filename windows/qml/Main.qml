@@ -7,6 +7,7 @@ import QtQuick.Effects
 import DroidMediaLink 1.0 as NativeFrame
 
 import "Icons.js" as Icons
+import "Motion.js" as Motion
 
 ApplicationWindow {
     id: root
@@ -32,6 +33,8 @@ ApplicationWindow {
     property bool overlayTopmost: root.pref("overlayTopmost",true)
     property int settingsRevision: 0
     function pref(key, fallback) { var revision=root.settingsRevision; return backend.setting(key,fallback) }
+    function motionRate(scope){return Motion.rate(backend,settingsRevision,scope)}
+    function duration(ms,scope){return motion?Motion.duration(ms,motionRate(scope)):0}
     property string search: ""
     property int settingsCategory: 0
     font.family: design.family
@@ -65,7 +68,7 @@ ApplicationWindow {
         const target=next===2?1:0
         if(!motion||!visible){drawerProgress=target;return}
         drawerProgress=from;pageMotion.from=from;pageMotion.to=target
-        pageMotion.duration=Math.max(80,Math.round(720*Math.abs(target-from)))
+        pageMotion.duration=root.duration(Math.max(80,720*Math.abs(target-from)),"settings")
         pageMotion.start()
     }
     function openSettings(group,section){
@@ -91,7 +94,7 @@ ApplicationWindow {
     onClosing: function(close) { if (root.pref("closeToTray", true)) { close.accepted=false; hide() } else Qt.quit() }
     FontLoader { id: lucide; source: "qrc:/icons/lucide.ttf" }
     SystemPalette{id:nativePalette;colorGroup:SystemPalette.Active}
-    DesignTokens {id:design;light:root.light;motion:root.motion;accent:root.accent}
+    DesignTokens {id:design;light:root.light;motion:root.motion;motionRate:root.motionRate("interface");accent:root.accent}
     property bool wide: width>=940 && width/height>1.2
     property int canvasMargin: Math.round(Math.max(28,Math.min(64,width/contentScale*.055)))
     component Action: Button {
@@ -109,7 +112,7 @@ ApplicationWindow {
         contentItem:Text {text:a.iconName?Icons.glyph(a.iconName):a.text;font.family:a.iconName?lucide.name:root.font.family;font.pixelSize:a.iconName?20:design.body;font.weight:a.primary?Font.DemiBold:Font.Medium;color:a.primary?design.accentText:a.checked?root.accent:root.fg;opacity:a.enabled?1:.35;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter}
         GlassHint {
             parent:a;text:a.text;visible:a.iconName.length>0&&a.hovered;delay:650
-            light:root.light;liquid:root.liquidStyle;motion:root.motion;foreground:root.fg;surface:design.elevated
+            light:root.light;liquid:root.liquidStyle;motion:root.motion;motionRate:root.motionRate("interface");foreground:root.fg;surface:design.elevated
             materialSource:a.Window.window===trayWindow?trayBackdrop:a.Window.window===floating?floatingBackdrop:ambient
         }
     }
@@ -122,7 +125,7 @@ ApplicationWindow {
         background:Rectangle{radius:8;color:captionButton.down?design.pressed:captionButton.hovered?design.hover:"transparent";border.width:captionButton.visualFocus?1:0;border.color:root.accent}
         GlassHint {
             parent:captionButton;text:captionButton.text;visible:captionButton.hovered;delay:650
-            light:root.light;liquid:root.liquidStyle;motion:root.motion;foreground:root.fg;surface:design.elevated
+            light:root.light;liquid:root.liquidStyle;motion:root.motion;motionRate:root.motionRate("interface");foreground:root.fg;surface:design.elevated
             materialSource:ambient
         }
     }
@@ -171,7 +174,7 @@ ApplicationWindow {
     }
     component AppDialog: GlassDialog {
         materialSource: ambient; configuration: root.material("popup")
-        light: root.light; motion: root.motion; glassEnabled: root.liquidStyle
+        light: root.light; motion: root.motion; motionRate:root.motionRate("interface");glassMotionRate:root.motionRate("glass");glassEnabled: root.liquidStyle
         highContrast: root.highContrast; foreground: root.fg; surface: design.elevated; accent: root.accent
     }
     AppDialog {
@@ -192,7 +195,7 @@ ApplicationWindow {
     }
     component AmbientScene: AmbientField {
         monochromeStrength:backend.ambientMonochromeStrength;primary:backend.ambientPrimary;secondary:backend.ambientSecondary;accent:backend.ambientAccent;deep:backend.ambientDeep;configuration:root.material("background")
-        light:root.light;motion:root.motion;transitionDuration:design.atmosphere;active:Window.window&&Window.window.visible&&Window.window.active&&Window.window.visibility!==Window.Minimized
+        light:root.light;motion:root.motion;motionRate:root.motionRate("background");transitionDuration:root.duration(900,"background");active:Window.window&&Window.window.visible&&Window.window.active&&Window.window.visibility!==Window.Minimized
     }
     component Caption: Label{textFormat:Text.PlainText;color:root.muted;font.pixelSize:design.caption}
     component Transport: RowLayout {
@@ -210,7 +213,7 @@ ApplicationWindow {
             implicitWidth: controls.compact?44:48; implicitHeight: implicitWidth; font.pixelSize: 24
             background: GlassMaterial {
                 rasterScale:controls.rasterScale
-                sourceItem:controls.backdrop;glassEnabled:controls.water;active:Window.window&&Window.window.visible;motion:root.motion
+                sourceItem:controls.backdrop;glassEnabled:controls.water;motionRate:root.motionRate("glass");active:Window.window&&Window.window.visible;motion:root.motion
                 configuration:Object.assign({},root.material("dock"),{glassRadius:width/2,glassOpacity:.06,glassBlur:1.4,glassRefraction:1.6,glassDistortion:1.2,glassEdgeGlow:.65,glassEdgeWidth:1.7})
                 cornerRadius:width/2;dark:!root.light;backdropColor:root.bg;tintColor:root.accent;fallbackColor:root.accent
                 opacity:parent.enabled?(parent.down?.8:1):.3
@@ -267,7 +270,7 @@ ApplicationWindow {
             id:playbackDock;objectName:"playbackDock";property bool capsule:root.pref("dock/shape","rounded")==="capsule";configuration:capsule?Object.assign({},root.material("dock"),{glassRadius:height/2}):root.material("dock");motion:root.motion
             rasterScale:root.contentScale
             width:parent.width;height:parent.height;y:root.fall(0,.48)
-            sourceItem:ambient;glassEnabled:root.liquidStyle;cornerRadius:design.dockRadius;dark:!root.light;active:root.visible&&root.visibility!==Window.Minimized&&visible;backdropColor:root.bg;tintColor:design.elevated;tintStrength:root.light?.10+root.glass*.44:.04+root.glass*.25;fallbackColor:design.surface
+            sourceItem:ambient;glassEnabled:root.liquidStyle;motionRate:root.motionRate("glass");cornerRadius:design.dockRadius;dark:!root.light;active:root.visible&&root.visibility!==Window.Minimized&&visible;backdropColor:root.bg;tintColor:design.elevated;tintStrength:root.light?.10+root.glass*.44:.04+root.glass*.25;fallbackColor:design.surface
             CapsuleProgress {
                 rasterScale:root.contentScale
                 anchors.left:parent.left;anchors.right:parent.right;height:playbackDock.height/2+20;radius:playbackDock.height/2;visible:playbackDock.capsule
@@ -312,6 +315,10 @@ ApplicationWindow {
         onFloatingRequested:floating.visible=!floating.visible
         onImportLyricsRequested:lyricFile.open()
         onMatchLyricsRequested:{query.text=backend.titleForSearch()+" "+backend.artist;matchDialog.open()}
+        onMatchCoverRequested:{
+            coverTitle.text=backend.title;coverArtist.text=backend.artist;coverAlbum.text=backend.album
+            coverDialog.searched=false;coverDialog.open()
+        }
         onSearchDevicesRequested:{discovery.open();backend.discover()}
         onForgetDeviceRequested:function(url){root.selectedDeviceUrl=url;revoke.open()}
         onActionRequested:function(key){if(key==="editDesktopLyrics"){desktop.editRequested()}}
@@ -345,6 +352,56 @@ ApplicationWindow {
             }
         }
     }
+    AppDialog {
+        id:coverDialog
+        objectName:"manualCoverSearch"
+        title:qsTr("Search for cover art")
+        width:Math.min(root.width-48,540);height:Math.min(root.height-48,480)
+        anchors.centerIn:Overlay.overlay;standardButtons:Dialog.Close
+        property bool searched:false
+        readonly property bool canSearch:backend.title.length>0&&coverTitle.text.trim().length>0&&coverArtist.text.trim().length>0
+        function search(){
+            if(!canSearch)return
+            searched=true
+            backend.searchCovers(coverTitle.text,coverArtist.text,coverAlbum.text)
+        }
+        onClosed:backend.cancelCoverSearch()
+        contentItem:ColumnLayout {
+            spacing:8
+            RowLayout {
+                Layout.fillWidth:true
+                Field{id:coverTitle;Layout.fillWidth:true;placeholderText:qsTr("Track title");Accessible.name:placeholderText;onAccepted:coverDialog.search()}
+                Field{id:coverArtist;Layout.fillWidth:true;placeholderText:qsTr("Artist");Accessible.name:placeholderText;onAccepted:coverDialog.search()}
+            }
+            RowLayout {
+                Layout.fillWidth:true
+                Field{id:coverAlbum;Layout.fillWidth:true;placeholderText:qsTr("Album (optional)");Accessible.name:placeholderText;onAccepted:coverDialog.search()}
+                Action{text:qsTr("Search");primary:true;enabled:coverDialog.canSearch;onClicked:coverDialog.search()}
+            }
+            Label{visible:backend.coverSearchBusy||coverDialog.searched&&!backend.coverSearchResults.length;text:backend.coverSearchBusy?qsTr("Searching…"):qsTr("No matching covers");color:root.muted}
+            ListView {
+                id:coverResultList
+                Layout.fillWidth:true;Layout.fillHeight:true
+                clip:true;spacing:4;model:backend.coverSearchResults
+                delegate:ItemDelegate {
+                    id:coverResult
+                    required property var modelData
+                    required property int index
+                    readonly property string sourceName:backend.coverProviders.find(row=>row.id===modelData.source)?.name??modelData.source
+                    width:coverResultList.width;height:66
+                    Accessible.name:sourceName
+                    onClicked:if(backend.selectCoverResult(index))coverDialog.close()
+                    background:Rectangle{radius:design.radius;color:coverResult.down?design.pressed:coverResult.hovered?design.hover:"transparent";border.width:coverResult.visualFocus?1:0;border.color:root.accent}
+                    contentItem:RowLayout {
+                        spacing:12
+                        Image{Layout.preferredWidth:50;Layout.preferredHeight:50;source:coverResult.modelData.image;sourceSize:Qt.size(96,96);fillMode:Image.PreserveAspectFit;asynchronous:true}
+                        Label{Layout.fillWidth:true;text:coverResult.sourceName;color:root.fg;textFormat:Text.PlainText;elide:Text.ElideRight}
+                        Label{text:coverResult.modelData.width+" × "+coverResult.modelData.height;color:root.muted}
+                    }
+                }
+            }
+        }
+    }
     FileDialog { id: lyricFile; nameFilters:[qsTr("Lyrics")+" (*.lrc *.yrc *.qrc *.krc *.ttml *.txt)"]; onAccepted: backend.importLyrics(selectedFile) }
     FileDialog { id: exportFile; fileMode:FileDialog.SaveFile; defaultSuffix:"json"; onAccepted:backend.exportSettings(selectedFile) }
     FileDialog { id: importFile; nameFilters:["JSON (*.json)"]; onAccepted:backend.importSettings(selectedFile) }
@@ -361,7 +418,7 @@ ApplicationWindow {
         Timer{id:floatingPositionSave;interval:350;onTriggered:if(!floatingDrag.pressed)floating.persistPosition();else restart()}
         Connections{target:mainChrome;function onAboutToQuit(){if(floatingPositionSave.running)floating.persistPosition()}}
         AmbientScene{id:floatingBackdrop;anchors.fill:parent;visible:false}
-        GlassMaterial{opacity:root.highContrast?1:.72;configuration:root.material("floating");motion:root.motion;anchors.fill:parent;sourceItem:floatingBackdrop;glassEnabled:root.liquidStyle;cornerRadius:design.floatingRadius;active:floating.visible;dark:!root.light;backdropColor:root.bg;tintColor:design.elevated;tintStrength:root.light?.10+root.glass*.44:.04+root.glass*.25;fallbackColor:design.elevated}
+        GlassMaterial{opacity:root.highContrast?1:.72;configuration:root.material("floating");motion:root.motion;motionRate:root.motionRate("glass");anchors.fill:parent;sourceItem:floatingBackdrop;glassEnabled:root.liquidStyle;cornerRadius:design.floatingRadius;active:floating.visible;dark:!root.light;backdropColor:root.bg;tintColor:design.elevated;tintStrength:root.light?.10+root.glass*.44:.04+root.glass*.25;fallbackColor:design.elevated}
         Item{anchors.left:parent.left;anchors.right:parent.right;anchors.top:parent.top;anchors.margins:6;anchors.rightMargin:44;height:64;z:1
             HoverHandler{cursorShape:floatingDrag.pressed?Qt.ClosedHandCursor:Qt.OpenHandCursor}
             MouseArea{id:floatingDrag;anchors.fill:parent;acceptedButtons:Qt.LeftButton;onPressed:Qt.callLater(function(){floating.startSystemMove()})}
@@ -409,7 +466,7 @@ ApplicationWindow {
                 heldMonochrome=monochromeAmount;followPalette=false
             }
         }
-        GlassMaterial {configuration:root.material("popup");motion:root.motion;anchors.fill:parent;anchors.margins:1;sourceItem:trayBackdrop;glassEnabled:root.liquidStyle;cornerRadius:design.trayRadius;dark:!root.light;active:trayWindow.visible;backdropColor:root.bg;tintColor:design.elevated;tintStrength:root.light?.10+root.glass*.44:.04+root.glass*.25;fallbackColor:design.elevated
+        GlassMaterial {configuration:root.material("popup");motion:root.motion;motionRate:root.motionRate("glass");anchors.fill:parent;anchors.margins:1;sourceItem:trayBackdrop;glassEnabled:root.liquidStyle;cornerRadius:design.trayRadius;dark:!root.light;active:trayWindow.visible;backdropColor:root.bg;tintColor:design.elevated;tintStrength:root.light?.10+root.glass*.44:.04+root.glass*.25;fallbackColor:design.elevated
             ColumnLayout {anchors.fill:parent;anchors.margins:14;spacing:6
                 Caption{text:backend.status;Layout.fillWidth:true;elide:Text.ElideRight}
                 RowLayout {Layout.fillWidth:true;spacing:12
@@ -466,16 +523,16 @@ ApplicationWindow {
     Shortcut{sequence:root.pref("shortcut/devices","Ctrl+Shift+D");onActivated:root.openSettings(1,0)}
     Shortcut{sequence:root.pref("shortcut/desktop","Ctrl+Shift+L");onActivated:desktop.toggleRequested()}
     Shortcut{sequence:root.pref("shortcut/floating","Ctrl+Shift+P");onActivated:floating.visible=!floating.visible}
-    Shortcut{sequence:"Escape";enabled:root.page===2;onActivated:root.changePage(0)}
+    Shortcut{sequence:"Escape";enabled:root.page===2&&!coverDialog.visible&&!matchDialog.visible&&!settingsPage.paletteOpen;onActivated:root.changePage(0)}
     Popup{
         id:volumePopup;parent:volumeButton;x:(parent.width-width)/2;y:-height-6;width:56;height:174;padding:8
         modal:false;focus:false;closePolicy:Popup.CloseOnEscape|Popup.CloseOnPressOutsideParent
         property bool pinned:false
         property real requestedVolume:0
         onClosed:{pinned=false;volumeDismiss.stop()}
-        enter:Transition{NumberAnimation{property:"opacity";from:0;to:1;duration:root.motion?140:0}}
-        exit:Transition{NumberAnimation{property:"opacity";from:1;to:0;duration:root.motion?140:0}}
-        background:GlassMaterial{sourceItem:ambient;configuration:root.material("popup");glassEnabled:root.liquidStyle;active:volumePopup.visible;dark:!root.light;backdropColor:root.bg;fallbackColor:design.elevated;motion:root.motion}
+        enter:Transition{NumberAnimation{property:"opacity";from:0;to:1;duration:root.duration(140,"interface")}}
+        exit:Transition{NumberAnimation{property:"opacity";from:1;to:0;duration:root.duration(140,"interface")}}
+        background:GlassMaterial{sourceItem:ambient;configuration:root.material("popup");glassEnabled:root.liquidStyle;active:volumePopup.visible;dark:!root.light;backdropColor:root.bg;fallbackColor:design.elevated;motion:root.motion;motionRate:root.motionRate("glass")}
         contentItem:ColumnLayout{spacing:8
             Caption{Layout.alignment:Qt.AlignHCenter;text:backend.volumeKnown?Math.round(volumeSlider.value*100)+"%":"—"}
             Slider{

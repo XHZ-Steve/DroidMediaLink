@@ -1,12 +1,16 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
+import "Motion.js" as Motion
 import QtQuick.Layouts
 import "Icons.js" as Icons
 Window {
  id:window;objectName:"desktop";transientParent:null
  required property var controller
  property int settingsRevision:0
+ readonly property bool motion:pref("motion",true)
+ readonly property real interfaceRate:Motion.rate(controller,settingsRevision,"interface")
+ readonly property real glassRate:Motion.rate(controller,settingsRevision,"glass")
  signal settingsRequested()
  FontLoader{id:desktopIcons;source:"qrc:/icons/lucide.ttf"}
  function pref(key,fallback){var revision=settingsRevision;return controller.setting(key,fallback)}
@@ -48,7 +52,7 @@ Window {
   sourceComponent:Item{
    readonly property alias hintSource:ambient
    AmbientField{id:ambient;anchors.fill:parent;visible:false;primary:window.controller.ambientPrimary;secondary:window.controller.ambientSecondary;accent:window.controller.ambientAccent;deep:window.controller.ambientDeep;monochromeStrength:typeof window.controller.ambientMonochromeStrength === "number" ? window.controller.ambientMonochromeStrength : 0;motion:false;active:window.visible;configuration:window.controller.appearanceConfig("background")}
-   GlassMaterial{anchors.fill:parent;sourceItem:ambient;active:window.visible;configuration:window.controller.appearanceConfig("desktop");glassEnabled:window.pref("appearance/style","liquid")==="liquid";motion:window.pref("motion",true);dark:true;fallbackColor:"#66222a35"}
+   GlassMaterial{anchors.fill:parent;sourceItem:ambient;active:window.visible;configuration:window.controller.appearanceConfig("desktop");glassEnabled:window.pref("appearance/style","liquid")==="liquid";motion:window.motion;motionRate:window.glassRate;dark:true;fallbackColor:"#66222a35"}
   }
  }
  MouseArea {anchors.fill:parent;enabled:!window.clickThrough;acceptedButtons:Qt.LeftButton|Qt.RightButton;onPressed:function(mouse){if(mouse.button===Qt.RightButton)window.editRequested();else Qt.callLater(function(){window.startSystemMove()})};onDoubleClicked:window.editMode=!window.editMode}
@@ -64,7 +68,7 @@ Window {
  Text {anchors.centerIn:parent;visible:window.editMode&&!window.hasLyrics;text:qsTr("No lyrics");font.family:"Segoe UI Variable Text";font.pixelSize:24;color:"#ccd4dc";renderType:Text.CurveRendering}
  HoverHandler{id:hover;enabled:!window.clickThrough;onHoveredChanged:{if(hovered){hoverExit.stop();window.hoverLatched=true}else hoverExit.restart()}}
  Timer{id:hoverExit;interval:500;onTriggered:window.hoverLatched=false}
- Rectangle {anchors.fill:parent;radius:16;color:"transparent";border.width:1;border.color:"#7099afc5";opacity:window.controlsVisible?1:0;Behavior on opacity{NumberAnimation{duration:160}}}
+ Rectangle {anchors.fill:parent;radius:16;color:"transparent";border.width:1;border.color:"#7099afc5";opacity:window.controlsVisible?1:0;Behavior on opacity{NumberAnimation{duration:window.motion?Motion.duration(160,window.interfaceRate):0}}}
  component EditButton:Button {
   id:button;font.family:"Segoe UI Variable Text";font.pixelSize:14;implicitHeight:32;implicitWidth:Math.max(30,contentItem.implicitWidth+10);leftPadding:5;rightPadding:5;hoverEnabled:true;Accessible.name:text
   property string hint:""
@@ -73,13 +77,13 @@ Window {
   GlassHint {
    parent:button;text:button.hint;visible:button.hovered&&text.length>0
    materialSource:backdropLoader.item?.hintSource??null
-   light:window.pref("light",false);liquid:window.pref("appearance/style","liquid")==="liquid";motion:window.pref("motion",true)
+   light:window.pref("light",false);liquid:window.pref("appearance/style","liquid")==="liquid";motion:window.motion;motionRate:window.interfaceRate
   }
  }
  Item {id:bar;anchors.horizontalCenter:parent.horizontalCenter;y:6;width:Math.min(window.width-24,560);height:42;z:10
-  visible:opacity>0;opacity:window.controlsVisible?1:0;Behavior on opacity{NumberAnimation{duration:160}}
+  visible:opacity>0;opacity:window.controlsVisible?1:0;Behavior on opacity{NumberAnimation{duration:window.motion?Motion.duration(160,window.interfaceRate):0}}
   Rectangle{id:barBackdrop;anchors.fill:parent;visible:false;gradient:Gradient{GradientStop{position:0;color:"#344354"}GradientStop{position:1;color:"#1b2637"}}}
-  GlassMaterial {anchors.fill:parent;sourceItem:barBackdrop;cornerRadius:13;dark:true;active:window.visible&&bar.visible;glassEnabled:window.pref("appearance/style","liquid")==="liquid";tintColor:"#233044";tintStrength:.25;fallbackColor:"#db253144"}
+  GlassMaterial {anchors.fill:parent;sourceItem:barBackdrop;motion:window.motion;motionRate:window.glassRate;cornerRadius:13;dark:true;active:window.visible&&bar.visible;glassEnabled:window.pref("appearance/style","liquid")==="liquid";tintColor:"#233044";tintStrength:.25;fallbackColor:"#db253144"}
   RowLayout {anchors.fill:parent;anchors.margins:4;spacing:window.width<360?2:4
    EditButton{visible:window.width>=460;text:"-";Accessible.name:qsTr("Decrease font size");onClicked:window.controller.setSetting("desktopLyrics/fontSize",Math.max(16,window.pref("desktopLyrics/fontSize",36)-2))}
    Label{visible:window.width>=460;text:String(window.pref("desktopLyrics/fontSize",36));color:"#eef2f5";horizontalAlignment:Text.AlignHCenter;Layout.preferredWidth:24;font.pixelSize:13}

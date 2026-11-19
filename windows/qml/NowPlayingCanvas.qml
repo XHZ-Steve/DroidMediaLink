@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "Motion.js" as Motion
 
 Item {
     id: canvas
@@ -38,7 +39,8 @@ Item {
     function showLoadedLyrics(){contentReveal=controller.lyrics.length&&!loadingLyrics?1:0}
     Connections{target:canvas.controller;ignoreUnknownSignals:true;function onLyricsChanged(){canvas.showLoadedLyrics()}}
     onLoadingLyricsChanged:{if(loadingLyrics)loadingDelay.restart();else{loadingDelay.stop();loadingFeedback.show=false}showLoadedLyrics()}
-    Behavior on contentReveal{enabled:!canvas.resettingLyrics;NumberAnimation{duration:canvas.motion&&canvas.active?240:0;easing.type:Easing.OutCubic}}
+    function duration(ms,scope){return Motion.duration(ms,Motion.rate(controller,settingsRevision,scope))}
+    Behavior on contentReveal{enabled:!canvas.resettingLyrics;NumberAnimation{duration:canvas.motion&&canvas.active?canvas.duration(240,"lyricsHighlight"):0;easing.type:Easing.OutCubic}}
     readonly property bool lyricsMode: mode===2
     readonly property bool displayingLyrics: lyricsEnabled && mode!==1
     readonly property string trackIdentity:controller.title+"\u0000"+controller.artist+"\u0000"+controller.appName
@@ -119,7 +121,7 @@ Item {
         if(lyricsMode&&controller.lyrics.length&&motion&&active&&!changingLayout){lyricFocus=0;focusMotion.start();beginNextLayout();return}
         beginNextLayout()
     }
-    NumberAnimation{id:focusMotion;target:canvas;property:"lyricFocus";from:0;to:1;duration:110;easing.type:Easing.OutCubic}
+    NumberAnimation{id:focusMotion;target:canvas;property:"lyricFocus";from:0;to:1;duration:canvas.duration(110,"layout");easing.type:Easing.OutCubic}
     onModeChanged:if(ready){if(!active)cancelTransitionForResize();else{if(!changingLayout)freezeGeometry();scheduleTransition()}}
     onArtworkScaleChanged:cancelTransitionForResize()
     onWidthChanged:cancelTransitionForResize()
@@ -130,7 +132,7 @@ Item {
     function cancelTransitionForResize(){if(!ready)return;restingAlignment=targetTextAlignment;++transitionGeneration;focusMotion.stop();layoutMotion.stop();lyricFocus=0;transitionProgress=1;changingLayout=false;Qt.callLater(polishLayout)}
     function polishLayout(){slots.ensurePolished()}
     Component.onCompleted:{restingAlignment=targetTextAlignment;ready=true;showLoadedLyrics()}
-    NumberAnimation{id:layoutMotion;target:canvas;property:"transitionProgress";from:0;to:1;duration:320;easing.type:Easing.InOutCubic;onFinished:{canvas.restingAlignment=canvas.toGeometry.alignment;canvas.changingLayout=false;canvas.lyricFocus=0}}
+    NumberAnimation{id:layoutMotion;target:canvas;property:"transitionProgress";from:0;to:1;duration:canvas.duration(320,"layout");easing.type:Easing.InOutCubic;onFinished:{canvas.restingAlignment=canvas.toGeometry.alignment;canvas.changingLayout=false;canvas.lyricFocus=0}}
     Binding{target:canvas;property:"textAlignment";value:canvas.changingLayout?canvas.mix(canvas.fromGeometry.alignment,canvas.toGeometry.alignment):canvas.restingAlignment}
     TypographyTokens{id:typography}
     DesignTokens{id:tokens;light:canvas.light;motion:canvas.motion;accent:canvas.accent}
@@ -183,7 +185,7 @@ Item {
         transform:Translate{y:canvas.artworkDeparture}
         width:canvas.coverGeometry.width;height:canvas.coverGeometry.height
         x:canvas.coverGeometry.x;y:canvas.coverGeometry.y
-        source:canvas.controller.artwork;motion:canvas.motion&&canvas.active;transitionDuration:Math.min(240,tokens.change)
+        source:canvas.controller.artwork;motion:canvas.motion&&canvas.active;transitionDuration:canvas.duration(240,"artwork")
         rasterScale:canvas.rasterScale;cornerRadius:{canvas.settingsRevision;return canvas.controller.setting("home/artworkRadius",0)}
         ambientColor:canvas.controller.ambientPrimary||canvas.accent
         onActivated:canvas.nextLayout()
@@ -319,7 +321,7 @@ Item {
         property bool show:false
         x:canvas.lyricTarget.x;y:canvas.lyricTarget.y;width:canvas.lyricTarget.width;height:Math.min(80,canvas.lyricTarget.height)
         opacity:show?1:0;visible:opacity>.001
-        Behavior on opacity{NumberAnimation{duration:canvas.motion&&canvas.active?180:0}}
+        Behavior on opacity{NumberAnimation{duration:canvas.motion&&canvas.active?canvas.duration(180,"lyricsHighlight"):0}}
         BusyIndicator{anchors.horizontalCenter:parent.horizontalCenter;anchors.verticalCenter:parent.verticalCenter;width:28;height:28;running:loadingFeedback.visible&&canvas.active;Accessible.name:qsTr("Matching lyrics…")}
     }
     RowLayout {

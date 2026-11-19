@@ -5,6 +5,7 @@ import QtQuick.Layouts
 import QtQuick.Dialogs
 import QtQuick.Effects
 import "Icons.js" as Icons
+import "Motion.js" as Motion
 
 // Controller contract: settingsCatalog supplies flat, localized descriptors;
 // values stay in the controller, and every editor commits through its public API.
@@ -18,6 +19,9 @@ Item {
     property bool highContrast: false
     property bool light: false
     property bool motion: true
+    readonly property bool paletteOpen:colorPicker.visible
+    readonly property real motionRate:Motion.rate(controller,settingsRevision,"settings")
+    function duration(ms){return motion?Motion.duration(ms,motionRate):0}
     property color accent: "#bac9ed"
     property color textColor: light?"#202431":"#f5f5fa"
     property url iconFontSource: "qrc:/icons/lucide.ttf"
@@ -84,6 +88,7 @@ Item {
     signal floatingRequested()
     signal importLyricsRequested()
     signal matchLyricsRequested()
+    signal matchCoverRequested()
     signal searchDevicesRequested()
     signal forgetDeviceRequested(string url)
     signal actionRequested(string key)
@@ -109,9 +114,9 @@ Item {
     readonly property var sectionNames: [
         [qsTr("Language and localization"),qsTr("Startup and exit"),qsTr("Window behavior"),qsTr("Tray and shortcuts")],
         [qsTr("Paired devices"),qsTr("Discovery and pairing"),qsTr("Connection and reconnection"),qsTr("Network and security")],
-        [qsTr("Player selection"),qsTr("Playback controls"),qsTr("Windows SMTC"),qsTr("Volume control")],
-        [qsTr("Lyric sources"),qsTr("Automatic matching"),qsTr("Main lyrics"),qsTr("Desktop lyrics"),qsTr("Animation and sync"),qsTr("Translation and romanization"),qsTr("Style presets")],
-        [qsTr("Theme and colors"),qsTr("Ambient background"),qsTr("Glass material"),qsTr("Fonts and motion"),qsTr("Settings groups")],
+        [qsTr("Enhanced cover sources"),qsTr("Playback controls"),qsTr("Windows SMTC"),qsTr("Volume control")],
+        [qsTr("Enhanced lyric sources"),qsTr("Automatic matching"),qsTr("Main lyrics"),qsTr("Desktop lyrics"),qsTr("Animation and sync"),qsTr("Translation and romanization"),qsTr("Style presets")],
+        [qsTr("Theme and colors"),qsTr("Ambient background"),qsTr("Glass material"),qsTr("Fonts and motion"),qsTr("Animation speed"),qsTr("Settings groups")],
         [qsTr("Performance and rendering"),qsTr("Cache and data"),qsTr("Updates"),qsTr("Logs and diagnostics")]
     ]
     readonly property var groupKeywords: [
@@ -164,6 +169,16 @@ Item {
             const index=normalizedSearch((row.label||"")+" "+row.key+" "+(row.tags||"")+" "+(row.help||"")+" "+groupNames[row.group]+" "+sectionTitle(row.group,row.section)+" "+groupKeywords[row.group])
             return terms.every(function(term){return index.indexOf(term)>=0})
         }).slice(0,100)
+    }
+    property var collapsedSearchGroups:({})
+    readonly property var groupedSearchResults:{
+        const groups={}
+        searchResults.forEach(function(row){
+            const key=row.group+"/"+row.section
+            if(!groups[key])groups[key]={key:key,label:groupNames[row.group]+" / "+sectionTitle(row.group,row.section),rows:[]}
+            groups[key].rows.push(row)
+        })
+        return Object.values(groups)
     }
     onInitialGroupChanged: if(componentReady)navigate(initialGroup,0)
     onInitialSectionChanged: if(componentReady)navigate(activeGroup,initialSection)
@@ -274,11 +289,17 @@ Item {
         const flick=contentScroll.contentItem
         flick.contentY=Math.max(0,Math.min(point.y-12-headerSpace(target),Math.max(0,flick.contentHeight-flick.height)))
     }
-    function returnToHeader(group,header,inset){
+    function scrollForCollapse(group,header,inset,bodyHeight,pinned){
         const flick=contentScroll.contentItem
+        const anchor=pinned?contentTop(group)+header.y-inset:flick.contentY
+        const target=Math.max(0,Math.min(anchor,flick.contentHeight-flick.height-bodyHeight))
+        if(Math.abs(target-flick.contentY)<.5)return
         flick.cancelFlick()
-        flick.contentY=Math.max(0,contentTop(group)+header.y-inset)
+        headerReturn.stop()
+        if(motion){headerReturn.to=target;headerReturn.start()}
+        else flick.contentY=target
     }
+    NumberAnimation {id:headerReturn;target:contentScroll.contentItem;property:"contentY";duration:tokens.fast;easing.type:Easing.OutCubic}
     function scrollToKey(key){
         const container=findNamed(contentColumn,"section-"+activeGroup+"/"+activeSection)||contentColumn
         let target=String(key).indexOf("@")===0?container:findNamed(container,"setting-"+key)
@@ -334,7 +355,7 @@ Item {
         default:actionRequested(action);break
         }
     }
-    DesignTokens {id:tokens;light:page.light;motion:page.motion;accent:page.accent}
+    DesignTokens {id:tokens;light:page.light;motion:page.motion;motionRate:page.motionRate;accent:page.accent}
     FontLoader {id:lucide;source:page.iconFontSource}
     Timer {id:jumpTimer;interval:0;onTriggered:Qt.callLater(function(){page.scrollToKey(page.highlightedKey)})}
     Timer {id:highlightTimer;interval:2200;onTriggered:page.highlightedKey=""}
@@ -390,12 +411,12 @@ Item {
                 ScrollIndicator.vertical:ScrollIndicator{}
             }
             background:GlassMaterial {
-                sourceItem:page.materialSource;glassEnabled:page.value("appearance/style","liquid")==="liquid";active:choiceMenu.visible&&page.visible;motion:page.motion
+                sourceItem:page.materialSource;glassEnabled:page.value("appearance/style","liquid")==="liquid";active:choiceMenu.visible&&page.visible;motion:page.motion;motionRate:Motion.rate(page.controller,page.settingsRevision,"glass")
                 configuration:{page.settingsRevision;return page.controller?page.controller.appearanceConfig("popup"):({})}
                 cornerRadius:16;dark:!page.light;backdropColor:tokens.base;tintColor:tokens.elevated;fallbackColor:tokens.elevated
             }
-            enter:Transition{NumberAnimation{property:"opacity";from:0;to:1;duration:page.motion?130:0;easing.type:Easing.OutCubic}}
-            exit:Transition{NumberAnimation{property:"opacity";to:0;duration:page.motion?90:0}}
+            enter:Transition{NumberAnimation{property:"opacity";from:0;to:1;duration:page.duration(130);easing.type:Easing.OutCubic}}
+            exit:Transition{NumberAnimation{property:"opacity";to:0;duration:page.duration(90)}}
         }
     }
     component Toggle: Switch {
@@ -525,9 +546,9 @@ Item {
         }
         RowLayout {
             Layout.fillWidth:true
-            Label{text:qsTr("Current source");color:tokens.secondaryText;font.pixelSize:tokens.caption}
+            Label{text:providerPanel.covers?qsTr("Current cover source"):qsTr("Current source");color:tokens.secondaryText;font.pixelSize:tokens.caption}
             Label{Layout.fillWidth:true;text:providerPanel.covers?(page.controller&&page.controller.coverSource||""):page.providerName(page.controller&&page.controller.lyricProvider?page.controller.lyricProvider:"");textFormat:Text.PlainText;color:page.textColor;elide:Text.ElideRight}
-            FlatButton{visible:!providerPanel.covers;text:qsTr("Choose lyrics");frosted:true;onClicked:page.matchLyricsRequested()}
+            FlatButton{text:qsTr("Manual search");frosted:true;onClicked:providerPanel.covers?page.matchCoverRequested():page.matchLyricsRequested()}
         }
         ListView {
             id:providerList;objectName:providerPanel.covers?"coverProviderList":"lyricProviderList";Layout.fillWidth:true;Layout.preferredHeight:count*56
@@ -678,7 +699,7 @@ Item {
         required property real sectionHeaderHeight
         property bool collapsed:page.subgroupCollapsed(groupIndex,sectionIndex,subgroupData.key)
         readonly property real stickyHeaderHeight:subgroupBar.height
-        readonly property real pinnedOffset:visible&&!collapsed?page.pinOffset(subgroup,subgroupBar,sectionHeaderHeight):0
+        readonly property real pinnedOffset:visible&&subgroupBody.reveal>0?page.pinOffset(subgroup,subgroupBar,sectionHeaderHeight):0
         property bool expandedOnce:false
         readonly property bool rowsLoaded:!collapsed||expandedOnce
         Component.onCompleted:if(!collapsed)expandedOnce=true
@@ -694,13 +715,14 @@ Item {
             anchors.fill:parent;text:subgroup.subgroupData.label;implicitHeight:36
             Accessible.description:subgroup.collapsed?qsTr("Collapsed"):qsTr("Expanded")
             onClicked:{
-                if(subgroup.pinnedOffset>0)page.returnToHeader(subgroup,subgroupBar,subgroup.sectionHeaderHeight)
+                if(!subgroup.collapsed)page.scrollForCollapse(subgroup,subgroupBar,subgroup.sectionHeaderHeight,subgroupBody.height,subgroup.pinnedOffset>0)
                 page.setSubgroupExpanded(subgroup.groupIndex,subgroup.sectionIndex,subgroup.subgroupData.key,subgroup.collapsed)
             }
             contentItem:RowLayout{Label{Layout.fillWidth:true;text:subgroupHeading.text;textFormat:Text.PlainText;color:tokens.secondaryText;font.family:tokens.family;font.pixelSize:tokens.body;font.weight:Font.Medium;elide:Text.ElideRight}Text{text:Icons.glyph("chevron-down");font.family:lucide.name;font.pixelSize:14;color:tokens.secondaryText;rotation:subgroup.collapsed?-90:0;Behavior on rotation{NumberAnimation{duration:tokens.fast}}}}
           }
         }
         Item {
+            id:subgroupBody
             Layout.fillWidth:true
             property real reveal:subgroup.collapsed?0:1
             implicitHeight:subgroupRows.implicitHeight*reveal;opacity:reveal;visible:reveal>0;clip:reveal<1
@@ -722,7 +744,7 @@ Item {
         property bool advanced:page.advancedFor(groupIndex,sectionIndex)
         property bool collapsed:page.isCollapsed(groupIndex,sectionIndex)
         readonly property real stickyHeaderHeight:sectionBar.height
-        readonly property real pinnedOffset:visible&&!collapsed?page.pinOffset(sectionBlock,sectionBar,0):0
+        readonly property real pinnedOffset:visible&&sectionBody.reveal>0?page.pinOffset(sectionBlock,sectionBar,0):0
         property bool specialized:(groupIndex===2&&sectionIndex===0)||(groupIndex===1&&(sectionIndex===0||sectionIndex===1))||(groupIndex===3&&(sectionIndex===0||sectionIndex===6))||appearance
         objectName:"section-"+groupIndex+"/"+sectionIndex
         Layout.fillWidth:true;implicitHeight:sectionLayout.implicitHeight;visible:specialized||allRows.length>0
@@ -747,7 +769,7 @@ Item {
                 Layout.fillWidth:true;text:page.sectionTitle(sectionBlock.groupIndex,sectionBlock.sectionIndex);implicitHeight:40
                 Accessible.description:sectionBlock.collapsed?qsTr("Collapsed"):qsTr("Expanded")
                 onClicked:{
-                    if(sectionBlock.pinnedOffset>0)page.returnToHeader(sectionBlock,sectionBar,0)
+                    if(!sectionBlock.collapsed)page.scrollForCollapse(sectionBlock,sectionBar,0,sectionBody.height,sectionBlock.pinnedOffset>0)
                     page.activeSection=sectionBlock.sectionIndex
                     page.setSectionExpanded(sectionBlock.groupIndex,sectionBlock.sectionIndex,sectionBlock.collapsed)
                 }
@@ -757,6 +779,7 @@ Item {
           }
         }
         Item {
+            id:sectionBody
             Layout.fillWidth:true;Layout.bottomMargin:8
             property real reveal:sectionBlock.collapsed?0:1
             implicitHeight:sectionInner.implicitHeight*reveal;opacity:reveal;visible:reveal>0;clip:reveal<1
@@ -825,13 +848,54 @@ Item {
             contentHeight:resultsColumn.height
             Column {
                 id:resultsColumn
-                width:resultsScroll.availableWidth;spacing:4
-                Repeater {model:page.searchResults
-                    ItemDelegate {
-                        id:searchHit;required property var modelData;width:parent.width;height:52;objectName:"search-"+modelData.key
-                        Accessible.name:modelData.label;onClicked:page.jumpTo(modelData)
-                        contentItem:Column{spacing:3;Label{text:searchHit.modelData.label;textFormat:Text.PlainText;color:page.textColor;font.pixelSize:tokens.body}Label{text:page.groupNames[searchHit.modelData.group]+" / "+page.sectionTitle(searchHit.modelData.group,searchHit.modelData.section);color:tokens.secondaryText;font.pixelSize:tokens.caption}}
-                        background:Rectangle{radius:tokens.radius;color:searchHit.hovered?tokens.hover:"transparent";border.width:searchHit.visualFocus?1:0;border.color:page.accent}
+                width:resultsScroll.availableWidth-12;spacing:8
+                Repeater {model:page.groupedSearchResults
+                    Item {
+                        id:searchGroup
+                        required property var modelData
+                        readonly property bool collapsed:!!page.collapsedSearchGroups[modelData.key]
+                        width:resultsColumn.width;height:searchGroupBody.height
+                        Rectangle {
+                            anchors.fill:parent;z:-1;radius:14;color:page.groupFill
+                            border.width:page.groupBorder.a>0?1:0;border.color:page.groupBorder
+                        }
+                        Column {
+                        id:searchGroupBody
+                        width:parent.width;bottomPadding:5
+                        FlatButton {
+                            id:searchHeading
+                            objectName:"search-group-"+searchGroup.modelData.key
+                            width:parent.width;text:searchGroup.modelData.label
+                            Accessible.description:searchGroup.collapsed?qsTr("Collapsed"):qsTr("Expanded")
+                            onClicked:{
+                                const state=Object.assign({},page.collapsedSearchGroups)
+                                state[searchGroup.modelData.key]=!searchGroup.collapsed
+                                page.collapsedSearchGroups=state
+                            }
+                            contentItem:RowLayout {
+                                Label{Layout.fillWidth:true;text:searchHeading.text;textFormat:Text.PlainText;elide:Text.ElideRight;color:page.textColor;font.weight:Font.DemiBold}
+                                Text{text:Icons.glyph("chevron-down");font.family:lucide.name;color:tokens.secondaryText;rotation:searchGroup.collapsed?-90:0}
+                            }
+                        }
+                        Item {
+                            width:parent.width
+                            property real reveal:searchGroup.collapsed?0:1
+                            height:hits.height*reveal;opacity:reveal;visible:reveal>0;clip:reveal<1
+                            Behavior on reveal{NumberAnimation{duration:tokens.fast;easing.type:Easing.OutCubic}}
+                            Column {
+                                id:hits
+                                x:10;width:Math.max(0,parent.width-20)
+                                Repeater {model:searchGroup.modelData.rows
+                                    ItemDelegate {
+                                        id:searchHit;required property var modelData;width:hits.width;height:38;objectName:"search-"+modelData.key
+                                        Accessible.name:modelData.label;onClicked:page.jumpTo(modelData)
+                                        contentItem:Label{text:searchHit.modelData.label;textFormat:Text.PlainText;elide:Text.ElideRight;color:page.textColor;font.pixelSize:tokens.body;verticalAlignment:Text.AlignVCenter}
+                                        background:Rectangle{radius:tokens.radius;color:searchHit.hovered?tokens.hover:"transparent";border.width:searchHit.visualFocus?1:0;border.color:page.accent}
+                                    }
+                                }
+                            }
+                        }
+                        }
                     }
                 }
                 Label{visible:page.searchResults.length===0;text:qsTr("No matching settings");color:tokens.secondaryText;padding:12}
@@ -857,7 +921,7 @@ Item {
                             if(page.motion)arrivalMotion.start()
                             else reveal=1
                         }
-                        NumberAnimation{id:arrivalMotion;target:groupCache;property:"reveal";from:0;to:1;duration:440}
+                        NumberAnimation{id:arrivalMotion;target:groupCache;property:"reveal";from:0;to:1;duration:page.duration(440)}
                         onVisibleChanged:if(visible){visited=true;startArrival()}
                         Component.onCompleted:if(visible)visited=true
                         onLoaded:if(page.activeGroup===index){restoreScroll.restart();sectionJump.restart();if(page.highlightedKey)jumpTimer.restart();startArrival()}
@@ -873,13 +937,14 @@ Item {
     }
     ParallelAnimation {
         id:categoryMotion
-        NumberAnimation{target:contentScroll;property:"opacity";to:1;duration:150;easing.type:Easing.OutCubic}
-        NumberAnimation{target:categoryOffset;property:"y";to:0;duration:190;easing.type:Easing.OutCubic}
+        NumberAnimation{target:contentScroll;property:"opacity";to:1;duration:page.duration(150);easing.type:Easing.OutCubic}
+        NumberAnimation{target:categoryOffset;property:"y";to:0;duration:page.duration(190);easing.type:Easing.OutCubic}
     }
     component ConfirmDialog: GlassDialog {
         materialSource: page.materialSource
         configuration: {const revision=page.settingsRevision;return page.controller.appearanceConfig("popup")}
         light: page.light; motion: page.motion; foreground: page.textColor; surface: tokens.elevated; accent: page.accent
+        motionRate:Motion.rate(page.controller,page.settingsRevision,"interface")
         highContrast: page.highContrast
         glassEnabled: !page.highContrast&&page.value("appearance/style","liquid")==="liquid"
     }
@@ -887,13 +952,16 @@ Item {
         id:colorPicker
         objectName:"settingsColorPicker"
         anchors.centerIn:Overlay.overlay
-        width:Math.min(368,page.width-24)
+        readonly property real planeSize:Math.max(110,Math.min(245,page.width-125,page.height-224))
+        width:planeSize+80
+        padding:18;spacing:12
         standardButtons:Dialog.Ok|Dialog.Cancel
         property Item targetRow:null
         property real hue:0
         property real saturation:0
         property real brightness:1
         property real alpha:1
+        property color previousColor:"transparent"
         readonly property color selected:Qt.hsva(hue,saturation,brightness,alpha)
         function readColor(value){
             if(!/^#(?:[0-9a-f]{6}|[0-9a-f]{8})$/i.test(value))return false
@@ -906,16 +974,20 @@ Item {
             targetRow=row
             title=row.descriptor.label
             readColor(String(row.currentValue==="auto"?page.accent:row.currentValue))
+            previousColor=selected
             hexColor.text=Qt.binding(function(){return String(colorPicker.selected)})
             open()
         }
         onAccepted:if(targetRow){readColor(hexColor.text.trim());targetRow.commit(selected.toString())}
         onClosed:targetRow=null
         contentItem:ColumnLayout {
-            spacing:12
+            spacing:10
+            RowLayout {
+            Layout.fillWidth:true;spacing:10
             Rectangle {
                 id:saturationPlane
-                Layout.fillWidth:true;implicitHeight:120;radius:10
+                objectName:"settingsColorPlane"
+                Layout.preferredWidth:colorPicker.planeSize;Layout.preferredHeight:colorPicker.planeSize;radius:6
                 color:Qt.hsva(colorPicker.hue,1,1,1)
                 layer.enabled:GraphicsInfo.api!==GraphicsInfo.Software
                 layer.effect:MultiEffect {
@@ -924,7 +996,7 @@ Item {
                 }
                 Rectangle {
                     id:paletteMask
-                    anchors.fill:parent;radius:10;visible:false;layer.enabled:true
+                    anchors.fill:parent;radius:6;visible:false;layer.enabled:true
                 }
                 Rectangle {
                     anchors.fill:parent
@@ -952,35 +1024,60 @@ Item {
             }
             Slider {
                 id:hueSlider
-                Layout.fillWidth:true;implicitHeight:28
+                orientation:Qt.Vertical
+                Layout.fillHeight:true;implicitWidth:26
                 value:colorPicker.hue;stepSize:.005
                 Accessible.name:qsTr("Hue")
                 onMoved:colorPicker.hue=value
                 background:Rectangle {
-                    x:hueSlider.leftPadding;y:(hueSlider.height-height)/2;width:hueSlider.availableWidth;height:8;radius:4
+                    x:(hueSlider.width-width)/2;y:hueSlider.topPadding;width:12;height:hueSlider.availableHeight;radius:4
                     gradient:Gradient {
-                        orientation:Gradient.Horizontal
-                        GradientStop{position:0;color:"#f55"} GradientStop{position:1/6;color:"#ff5"}
-                        GradientStop{position:2/6;color:"#5f5"} GradientStop{position:3/6;color:"#5ff"}
-                        GradientStop{position:4/6;color:"#55f"} GradientStop{position:5/6;color:"#f5f"}
+                        GradientStop{position:0;color:"#f55"} GradientStop{position:1/6;color:"#f5f"}
+                        GradientStop{position:2/6;color:"#55f"} GradientStop{position:3/6;color:"#5ff"}
+                        GradientStop{position:4/6;color:"#5f5"} GradientStop{position:5/6;color:"#ff5"}
                         GradientStop{position:1;color:"#f55"}
                     }
                 }
                 handle:Rectangle {
-                    x:hueSlider.leftPadding+hueSlider.visualPosition*(hueSlider.availableWidth-width)
-                    y:(hueSlider.height-height)/2;width:17;height:17;radius:9
+                    x:(hueSlider.width-width)/2
+                    y:hueSlider.topPadding+hueSlider.visualPosition*(hueSlider.availableHeight-height);width:22;height:10;radius:4
                     color:Qt.hsva(colorPicker.hue,1,1,1);border.color:hueSlider.visualFocus?page.accent:"white";border.width:2
                 }
+            }
             }
             RowLayout {
                 Layout.fillWidth:true;spacing:8
                 Label{text:qsTr("Opacity");color:tokens.secondaryText}
-                Slider{Layout.fillWidth:true;value:colorPicker.alpha;stepSize:.01;Accessible.name:qsTr("Opacity");onMoved:colorPicker.alpha=value}
+                Slider {
+                    id:alphaSlider
+                    Layout.fillWidth:true;implicitHeight:24
+                    value:colorPicker.alpha;stepSize:.01;Accessible.name:qsTr("Opacity")
+                    onMoved:colorPicker.alpha=value
+                    background:Rectangle {
+                        x:alphaSlider.leftPadding;y:(alphaSlider.height-height)/2
+                        width:alphaSlider.availableWidth;height:7;radius:3
+                        border.width:1;border.color:tokens.border
+                        gradient:Gradient {
+                            orientation:Gradient.Horizontal
+                            GradientStop{position:0;color:tokens.surface}
+                            GradientStop{position:1;color:Qt.hsva(colorPicker.hue,colorPicker.saturation,colorPicker.brightness,1)}
+                        }
+                    }
+                    handle:Rectangle {
+                        x:alphaSlider.leftPadding+alphaSlider.visualPosition*(alphaSlider.availableWidth-width)
+                        y:(alphaSlider.height-height)/2;width:14;height:14;radius:7
+                        color:page.textColor;border.width:alphaSlider.visualFocus?2:1;border.color:alphaSlider.visualFocus?page.accent:tokens.surface
+                    }
+                }
                 Label{text:Math.round(colorPicker.alpha*100)+"%";color:page.textColor;Layout.minimumWidth:36;horizontalAlignment:Text.AlignRight}
             }
             RowLayout {
                 Layout.fillWidth:true
-                Rectangle{width:34;height:30;radius:7;color:colorPicker.selected;border.width:1;border.color:tokens.border}
+                Row {
+                    spacing:2
+                    Rectangle{width:24;height:30;radius:4;color:colorPicker.previousColor;border.width:1;border.color:tokens.border}
+                    Rectangle{width:24;height:30;radius:4;color:colorPicker.selected;border.width:1;border.color:tokens.border}
+                }
                 Field {
                     id:hexColor;objectName:"settingsColorHex"
                     Layout.fillWidth:true;text:String(colorPicker.selected);maximumLength:9

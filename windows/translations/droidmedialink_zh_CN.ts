@@ -419,6 +419,12 @@
 </context>
 <context>
     <name>Main</name>
+    <message><source>Search for cover art</source><translation>手动搜索封面</translation></message>
+    <message><source>Track title</source><translation>歌曲名</translation></message>
+    <message><source>Artist</source><translation>艺人</translation></message>
+    <message><source>Album (optional)</source><translation>专辑（可选）</translation></message>
+    <message><source>Searching…</source><translation>正在搜索…</translation></message>
+    <message><source>No matching covers</source><translation>未找到匹配的封面</translation></message>
     <message>
         <source>Close settings</source>
         <translation>退出设置</translation>
@@ -885,6 +891,16 @@
 </context>
 <context>
     <name>Settings</name>
+    <message><source>Preferred player</source><translation>首选播放器</translation></message>
+    <message><source>Overall animation speed</source><translation>整体动画倍速</translation></message>
+    <message><source>Settings animation speed</source><translation>设置页动画倍速</translation></message>
+    <message><source>Controls and dialogs speed</source><translation>控件与弹窗倍速</translation></message>
+    <message><source>Playback layout animation speed</source><translation>播放页布局动画倍速</translation></message>
+    <message><source>Cover transition speed</source><translation>封面切换倍速</translation></message>
+    <message><source>Background animation speed</source><translation>背景动画倍速</translation></message>
+    <message><source>Lyric scroll animation speed</source><translation>歌词滚动倍速</translation></message>
+    <message><source>Lyric highlight animation speed</source><translation>歌词高亮动画倍速</translation></message>
+    <message><source>Glass response animation speed</source><translation>玻璃交互动效倍速</translation></message>
     <message>
         <source>Settings group fill</source>
         <translation>设置分组底色</translation>
@@ -2236,6 +2252,11 @@
 </context>
 <context>
     <name>SettingsPage</name>
+    <message><source>Enhanced cover sources</source><translation>增强封面来源</translation></message>
+    <message><source>Enhanced lyric sources</source><translation>增强歌词来源</translation></message>
+    <message><source>Current cover source</source><translation>当前封面来源</translation></message>
+    <message><source>Manual search</source><translation>手动搜索</translation></message>
+    <message><source>Animation speed</source><translation>动画倍速</translation></message>
     <message>
         <source>Opacity</source>
         <translation>不透明度</translation>

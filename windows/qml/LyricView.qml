@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
+import "Motion.js" as Motion
 
 Item {
  id:view
@@ -23,7 +24,11 @@ Item {
  property color inactiveColor:"#bdc5d5"
  property string fontFamily:option("fontFamily",type.displayFamily)
  property real fontSize:option("fontSize",desktop?36:28)
- property int scrollDuration:option("scrollDuration",420)
+ readonly property real scrollRate:Motion.rate(controller,settingsRevision,"lyricsScroll")
+ readonly property real highlightRate:Motion.rate(controller,settingsRevision,"lyricsHighlight")
+ function scrollTime(ms){return Motion.duration(ms,scrollRate)}
+ function highlightTime(ms){return Motion.duration(ms,highlightRate)}
+ property int scrollDuration:scrollTime(option("scrollDuration",420))
  property string easingCurve:option("easing","outCubic")
  property real focusPosition:option("focus",desktop?.5:.45)
  property real lineSpacing:option("lineSpacing",desktop?.22:.65)
@@ -39,7 +44,7 @@ Item {
  property bool flushAlignment:false
  property bool alignmentAnimation:true
  property real alignmentPosition:alignment==="right"?1:alignment==="center"?.5:0
- Behavior on alignmentPosition{enabled:view.alignmentAnimation&&view.active&&view.motion;NumberAnimation{duration:220;easing.type:Easing.OutCubic}}
+ Behavior on alignmentPosition{enabled:view.alignmentAnimation&&view.active&&view.motion;NumberAnimation{duration:view.highlightTime(220);easing.type:Easing.OutCubic}}
  property bool compact:false
  property int compactLines:2
  property bool showTranslation:option("translation",true)
@@ -54,8 +59,8 @@ Item {
  readonly property int fontWeight:option("fontWeight",desktop?450:500)
  readonly property int activeWeight:option("activeWeight",desktop?500:600)
  property real translationGap:desktop?6+option("groupSpacing",10):option("translationSpacing",6)
- Behavior on translationGap{enabled:view.motion&&view.active;NumberAnimation{duration:180;easing.type:Easing.InOutCubic}}
- Behavior on fontSize{enabled:view.motion&&view.active;NumberAnimation{duration:180;easing.type:Easing.InOutCubic}}
+ Behavior on translationGap{enabled:view.motion&&view.active;NumberAnimation{duration:view.highlightTime(180);easing.type:Easing.InOutCubic}}
+ Behavior on fontSize{enabled:view.motion&&view.active;NumberAnimation{duration:view.highlightTime(180);easing.type:Easing.InOutCubic}}
  readonly property color automaticGlowColor:light?"black":"white"
  readonly property real wordGlowRadius:option("wordGlowRadius",10)
  readonly property real wordGlowOpacity:option("wordGlowOpacity",.75)
@@ -109,6 +114,11 @@ Item {
   const u=(lo+hi)/2;return u*u*(3-2*u)
  }
  function recover(){timeline.userScrolling=false;timeline.cancelFlick();timeline.follow()}
+ function canSeekAt(point){
+  if(point.x<0||point.x>=width||point.y<0||point.y>=height)return false
+  if(option("fadeStrength",1)>0&&(point.y<topFade||point.y>height-bottomFade))return false
+  return originalFocus<=0||(point.y>=primaryRect.y&&point.y<primaryRect.y+primaryRect.height)
+ }
  onClockEnabledChanged:syncClock()
  onActiveChanged:{if(active)sampleSettings();syncClock();if(!active){scrollMotion.stop();timeline.positioned=false}else Qt.callLater(timeline.follow)}
  onLineChanged:Qt.callLater(timeline.follow)
@@ -207,7 +217,7 @@ Item {
   width:timeline.width
   height:body.height+(view.desktop?0:view.option("groupSpacing",10))
   opacity:(view.compact&&(index<view.line||index>=view.line+view.compactLines)?0:stateOpacity)*fade*(selected?1:1-view.originalFocus)
-  Behavior on opacity {enabled:view.active&&view.motion;NumberAnimation{duration:view.option("highlightDuration",180)}}
+  Behavior on opacity {enabled:view.active&&view.motion;NumberAnimation{duration:view.highlightTime(view.option("highlightDuration",180))}}
   Column {
    id:body;width:rowItem.layoutWidth*view.reserveScale+view.inkPadding*2
    x:view.flushAlignment?(rowItem.width-width)*view.alignmentPosition+view.inkPadding*primary.scale*(2*view.alignmentPosition-1):view.alignment==="center"?(rowItem.width-width)/2:view.alignment==="right"?rowItem.width-width:4
@@ -236,7 +246,7 @@ Item {
      outlineWidth:rowItem.selected&&width<=8192?view.outlineWidth:0;outlineColor:view.outlineColor
      shadow:rowItem.selected&&view.shadow&&width<=8192;shadowBlur:view.option("shadowBlur",6);shadowOffset:view.option("shadowOffset",2);shadowColor:view.option("shadowColor","#80000000")
      glow:rowItem.selected&&view.option("glow",false)&&width<=8192;glowRadius:view.option("glowRadius",8);glowOpacity:view.option("glowOpacity",.2);glowColor:view.colorOption("glowColor",view.automaticGlowColor)
-     Behavior on scale {enabled:view.active&&view.motion&&view.option("scaleAnimation",true);NumberAnimation{duration:view.option("scaleDuration",280);easing.type:Easing.OutCubic}}
+     Behavior on scale {enabled:view.active&&view.motion&&view.option("scaleAnimation",true);NumberAnimation{duration:view.highlightTime(view.option("scaleDuration",280));easing.type:Easing.OutCubic}}
      Flow {
       id:words;objectName:"lyricWords";onPositioningComplete:rowItem.measureLineEdges();x:view.inkPadding;y:view.inkPadding;width:view.longLine==="scroll"?100000:rowItem.sourceWidth
       Repeater {model:rowItem.chunks
@@ -253,7 +263,7 @@ Item {
        Repeater {model:rowItem.chunks
         Glyph {required property var modelData;lineShift:view.longLine==="wrap"?(rowItem.sourceWidth-(rowItem.wrappedLineEdges[String(Math.round(y))]||rowItem.sourceWidth))*view.alignmentPosition:0;value:modelData.text||"";limit:rowItem.sourceWidth;face:rowItem.face;metricsFace:rowItem.measureFace;highlight:true;inkColor:view.colorOption("sungColor",view.colorOption("color",view.textColor))
          progress:!rowItem||!view?0:!rowItem.wordTimed||view.highlightMode==="line"?1:Math.max(0,Math.min(1,(view.position-modelData.time)/Math.max(1,modelData.end-modelData.time)))
-         Behavior on progress {enabled:view.motion&&view.active;NumberAnimation{duration:view.option("wordDuration",70);easing.type:Easing.Linear}}
+         Behavior on progress {enabled:view.motion&&view.active;NumberAnimation{duration:view.highlightTime(view.option("wordDuration",70));easing.type:Easing.Linear}}
         }
        }
       }
@@ -286,7 +296,15 @@ Item {
     lineHeight:view.option("romanizationLineHeight",1.2);renderType:view.rendering;renderTypeQuality:104
    }
   }
-  TapHandler {enabled:view.interactive&&!view.compact&&!view.untimed;gesturePolicy:TapHandler.DragThreshold;onTapped:{if(!timeline.moving&&!timeline.dragging){view.seekRequested(rowItem.row.time);view.recover()}}}
+  TapHandler {
+   enabled:view.interactive&&!view.compact&&!view.untimed
+   gesturePolicy:TapHandler.DragThreshold
+   onTapped:function(eventPoint){
+    if(!timeline.moving&&!timeline.dragging&&view.canSeekAt(rowItem.mapToItem(view,eventPoint.position))){
+     view.seekRequested(rowItem.row.time);view.recover()
+    }
+   }
+  }
  }
  // Size the actual effect quad to the overhang. An expanded sourceRect alone
  // compresses that texture into the list width and moves the visible glyphs.
@@ -311,7 +329,7 @@ Item {
   topMargin:height;bottomMargin:height
   boundsBehavior:view.option("bounds","bounce")==="stop"?Flickable.StopAtBounds:Flickable.DragAndOvershootBounds
   maximumFlickVelocity:view.option("inertia",2500);flickDeceleration:view.option("deceleration",1800)
-  rebound:Transition{NumberAnimation{properties:"x,y";duration:view.option("bounceDuration",240);easing.type:Easing.OutCubic}}
+  rebound:Transition{NumberAnimation{properties:"x,y";duration:view.motion?view.scrollTime(view.option("bounceDuration",240)):0;easing.type:Easing.OutCubic}}
   interactive:view.interactive&&!view.compact;flickableDirection:Flickable.VerticalFlick
   function updateBrowseIndex(){
    if(!userScrolling||view.desktop||view.compact||view.untimed||!count)return
@@ -349,7 +367,7 @@ Item {
     timeline.manual();timeline.cancelFlick()
     const delta=(event.pixelDelta.y||event.angleDelta.y/120*view.fontSize*2)*view.option("wheelSensitivity",1.4)
     const target=Math.max(timeline.originY-timeline.topMargin,Math.min(timeline.originY+timeline.contentHeight-timeline.height+timeline.bottomMargin,start-delta))
-    scrollMotion.from=timeline.contentY;scrollMotion.to=target;scrollMotion.duration=view.motion?Math.min(200,view.scrollDuration):0
+    scrollMotion.from=timeline.contentY;scrollMotion.to=target;scrollMotion.duration=view.motion?Math.min(view.scrollTime(200),view.scrollDuration):0
     scrollMotion.start();resumeFollow.restart();event.accepted=true
    }
   }
@@ -366,7 +384,7 @@ Item {
   readonly property real duration:Math.max(1,Number(view.controller?.duration)||0,view.rows.length?(view.rows[view.rows.length-1].end||view.rows[view.rows.length-1].time):0)
   opacity:timeline.userScrolling&&timestamp>=0&&!view.desktop&&!view.compact?1:0
   visible:opacity>0
-  Behavior on opacity{enabled:view.motion;NumberAnimation{duration:160}}
+  Behavior on opacity{enabled:view.motion;NumberAnimation{duration:view.highlightTime(160)}}
   color:view.light?"#d9ffffff":"#c9202635";radius:13
   width:marker.implicitWidth+18;height:30
   Row {

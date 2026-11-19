@@ -58,6 +58,7 @@ Bridge::Bridge(QObject *parent):QObject(parent),m_status(tr("Disconnected")){
  if(!m_settings.contains("preferences/desktopLyrics/fontSize")&&m_settings.contains("preferences/lyricSize"))m_settings.setValue("preferences/desktopLyrics/fontSize",m_settings.value("preferences/lyricSize"));
  m_coverService=new CoverArtService(cachePath()+"/covers",this);m_publishedCover=new PublishedCoverArtProvider(this);m_publishedCoverDelay.setSingleShot(true);connect(&m_publishedCoverDelay,&QTimer::timeout,this,&Bridge::fetchPublishedCover);
  m_coverService->progress=[this](QString id,QVariantMap state){m_coverStates[id]=state;emit coverProvidersChanged();m_cacheScan.start();};
+ m_coverSearchService=new CoverArtService(cachePath()+"/covers",this);
  m_coverTestService=new CoverArtService(m_coverTestDirectory.isValid()?m_coverTestDirectory.path():cachePath()+"/cover-tests",this);m_coverTestService->setBudget(32);
  m_coverTestService->progress=[this](QString id,QVariantMap state){m_coverTestStates[id]=state;emit coverProvidersChanged();};
  m_coverRetry.setSingleShot(true);connect(&m_coverRetry,&QTimer::timeout,this,[this]{m_coverRequestKey.clear();enhanceCover(true);});
@@ -172,7 +173,7 @@ void Bridge::applyMedia(QJsonObject media){
  if(media.contains("positionMs"))m_position=qMax<qint64>(0,media.value("positionMs").toInteger());m_anchor.restart();
  if(previousSession!=m_media.value("sessionId")){m_publishedCoverActive=false;m_phonePixels={};m_receivedArtworkDigest.clear();}
  auto clearArtwork=[this]{m_receivedArtworkDigest.clear();m_publishedCoverActive=false;m_nativeArtwork.clear();if(!m_phoneNativeArtwork.isEmpty())QFile::remove(QUrl(m_phoneNativeArtwork).toLocalFile());m_phoneNativeArtwork.clear();const auto previous=QUrl(m_phoneArtwork).toLocalFile();if(!previous.isEmpty())QFile::remove(previous);m_phoneArtwork.clear();m_phoneArtworkDigest.clear();m_phonePixels={};m_enhancedPixels={};m_artwork.clear();m_artworkDigest.clear();m_coverPalette={};m_artworkAccent="#9bc3c6";};
- if(old!=title()+"|"+artist()+"|"+album()){++m_publishedCoverGeneration;m_publishedCover->cancel();m_publishedCoverDelay.stop();m_publishedCoverKey.clear();clearArtwork();m_coverRetry.stop();m_coverRetryKey.clear();m_coverAttempts=0;m_coverStates.clear();m_coverTestStates.clear();m_coverSource.clear();m_coverTestService->cancel();emit coverProvidersChanged();m_coverRequestKey.clear();m_coverService->cancel();m_pendingCover={};}
+ if(old!=title()+"|"+artist()+"|"+album()){cancelCoverSearch();m_manualCoverIdentity.clear();++m_publishedCoverGeneration;m_publishedCover->cancel();m_publishedCoverDelay.stop();m_publishedCoverKey.clear();clearArtwork();m_coverRetry.stop();m_coverRetryKey.clear();m_coverAttempts=0;m_coverStates.clear();m_coverTestStates.clear();m_coverSource.clear();m_coverTestService->cancel();emit coverProvidersChanged();m_coverRequestKey.clear();m_coverService->cancel();m_pendingCover={};}
  if(media.contains("artwork")){
   const auto bytes=QByteArray::fromBase64(media.value("artwork").toString().toLatin1());
   const auto digest=QCryptographicHash::hash(bytes,QCryptographicHash::Sha256);
@@ -189,7 +190,7 @@ void Bridge::applyMedia(QJsonObject media){
      const auto previous=QUrl(m_phoneArtwork).toLocalFile();m_phoneArtworkDigest=digest;m_phoneArtwork=QUrl::fromLocalFile(path).toString()+"?v="+QString::fromLatin1(digest.toHex().left(16));
      if(previous!=path&&!previous.isEmpty())QFile::remove(previous);emit coverProvidersChanged();
      // Repeated snapshots must never replace an enhanced texture with a thumbnail.
-     if(m_coverRequestKey.isEmpty()||m_artwork==m_phoneArtwork||m_artwork.isEmpty()||!m_artwork.contains("/covers/")||(!m_enhancedPixels.isEmpty()&&qMin(m_phonePixels.width(),m_phonePixels.height())>=qMin(m_enhancedPixels.width(),m_enhancedPixels.height()))){m_enhancedPixels={};m_nativeArtwork=m_phoneNativeArtwork;m_artworkDigest=digest;m_artwork=m_phoneArtwork;}
+     if(m_manualCoverIdentity.isEmpty()&&(m_coverRequestKey.isEmpty()||m_artwork==m_phoneArtwork||m_artwork.isEmpty()||!m_artwork.contains("/covers/")||(!m_enhancedPixels.isEmpty()&&qMin(m_phonePixels.width(),m_phonePixels.height())>=qMin(m_enhancedPixels.width(),m_enhancedPixels.height())))){m_enhancedPixels={};m_nativeArtwork=m_phoneNativeArtwork;m_artworkDigest=digest;m_artwork=m_phoneArtwork;}
     }
 
    }else if(!m_fromPublishedCover&&!m_publishedCoverActive&&m_enhancedPixels.isEmpty())clearArtwork();
@@ -439,9 +440,54 @@ void Bridge::testLyricProvider(QString provider){if(provider=="phone"){if(m_onli
 
 void Bridge::setDragging(bool dragging){if(m_dragging==dragging)return;m_dragging=dragging;if(dragging){m_progress.stop();m_lyricClock.stop();}else{if(!m_deferredMedia.isEmpty()){auto latest=m_deferredMedia;m_deferredMedia={};if(m_dragReceipt.isValid()&&latest.contains("positionMs")&&latest.value("state").toString(m_media.value("state").toString())=="playing")latest["positionMs"]=latest.value("positionMs").toInteger()+qint64(m_dragReceipt.elapsed()*latest.value("speed").toDouble(m_media.value("speed").toDouble(1)));m_dragReceipt.invalidate();applyMedia(latest);}if(!m_pendingCover.path.isEmpty()){auto cover=m_pendingCover;m_pendingCover={};applyEnhancedCover(cover);}setUiVisible(m_uiVisible);emit progressChanged();updateLyricClock();}}
 
-void Bridge::refreshCoverArt(){m_coverTestService->cancel();m_coverTestStates.clear();m_coverRetry.stop();m_coverAttempts=0;m_publishedCoverKey.clear();schedulePublishedCover();enhanceCover(true);}
-void Bridge::clearCoverArtCache(){m_coverRetry.stop();m_coverTestService->clear();m_coverStates.clear();m_coverTestStates.clear();m_coverSource.clear();emit coverProvidersChanged();m_pendingCover={};m_enhancedPixels={};m_coverService->clear();m_coverRequestKey.clear();m_enhancedPixels={};m_nativeArtwork=m_phoneNativeArtwork;m_artwork=m_phoneArtwork;m_artworkDigest=m_phoneArtworkDigest;emit changed();updateNative();m_cacheScan.start();emit notification(tr("Cover cache cleared"));}
+void Bridge::refreshCoverArt(){m_manualCoverIdentity.clear();m_coverTestService->cancel();m_coverTestStates.clear();m_coverRetry.stop();m_coverAttempts=0;m_publishedCoverKey.clear();schedulePublishedCover();enhanceCover(true);}
+void Bridge::clearCoverArtCache(){cancelCoverSearch();m_manualCoverIdentity.clear();m_coverRetry.stop();m_coverTestService->clear();m_coverStates.clear();m_coverTestStates.clear();m_coverSource.clear();emit coverProvidersChanged();m_pendingCover={};m_enhancedPixels={};m_coverService->clear();m_coverRequestKey.clear();m_enhancedPixels={};m_nativeArtwork=m_phoneNativeArtwork;m_artwork=m_phoneArtwork;m_artworkDigest=m_phoneArtworkDigest;emit changed();updateNative();m_cacheScan.start();emit notification(tr("Cover cache cleared"));}
+void Bridge::cancelCoverSearch(){
+ m_coverSearchService->cancel();
+ const bool changed=coverSearchBusy()||!m_coverSearchMatches.isEmpty();
+ m_coverSearchSources.clear();m_coverSearchMatches.clear();m_coverSearchIdentity.clear();
+ if(changed)emit coverSearchChanged();
+}
+void Bridge::searchCovers(QString title,QString artist,QString album){
+ cancelCoverSearch();
+ title=title.trimmed().left(240);artist=artist.trimmed().left(160);album=album.trimmed().left(240);
+ m_coverSearchIdentity=lyricIdentity();
+ if(m_coverSearchIdentity.isEmpty()||title.isEmpty()||artist.isEmpty())return;
+ m_coverSearchTrack={title,artist,album,duration()};
+ for(const auto &id:setting("cover/source","netease,qq,musicbrainz").toString().split(','))
+  if(setting("cover/providers/"+id+"/enabled",true).toBool())m_coverSearchSources<<id;
+ m_coverSearchService->setBudget(setting("cover/cacheMB",256).toInt());
+ emit coverSearchChanged();
+ searchNextCoverSource();
+}
+void Bridge::searchNextCoverSource(){
+ if(m_coverSearchSources.isEmpty())return;
+ m_coverSearchService->setPriority({m_coverSearchSources.first()});
+ m_coverSearchService->request(m_coverSearchTrack,setting("cover/resolution",1200).toInt(),false,[this](CoverArtResult result){
+  if(m_coverSearchIdentity!=lyricIdentity()){cancelCoverSearch();return;}
+  if(!result.path.isEmpty())m_coverSearchMatches<<result;
+  m_coverSearchSources.removeFirst();
+  emit coverSearchChanged();
+  searchNextCoverSource();
+ });
+}
+QVariantList Bridge::coverSearchResults() const{
+ QVariantList results;
+ for(const auto &match:m_coverSearchMatches)
+  results<<QVariantMap{{"image",QUrl::fromLocalFile(match.path)},{"source",match.source},{"width",match.pixels.width()},{"height",match.pixels.height()}};
+ return results;
+}
+bool Bridge::selectCoverResult(int index){
+ if(index<0||index>=m_coverSearchMatches.size()||m_coverSearchIdentity!=lyricIdentity())return false;
+ const auto match=m_coverSearchMatches[index];
+ if(!QFileInfo::exists(match.path))return false;
+ m_coverRetry.stop();m_coverService->cancel();m_pendingCover={};
+ m_manualCoverIdentity=m_coverSearchIdentity;
+ applyEnhancedCover(match,true);
+ return true;
+}
 void Bridge::enhanceCover(bool refresh){
+ if(!m_manualCoverIdentity.isEmpty()&&m_manualCoverIdentity==lyricIdentity())return;
  const auto mode=setting("cover/mode","off").toString();
  if(mode=="off"||setting("cover/phoneOnly",false).toBool()){m_coverRetry.stop();m_pendingCover={};m_coverService->cancel();m_coverRequestKey.clear();m_coverSource.clear();emit coverProvidersChanged();if(m_artwork!=m_phoneArtwork){m_enhancedPixels={};m_nativeArtwork=m_phoneNativeArtwork;m_artwork=m_phoneArtwork;m_artworkDigest=m_phoneArtworkDigest;emit changed();updateNative();}return;}
  CoverArtTrack track{title(),artist(),album(),duration()};const int target=setting("cover/resolution",1200).toInt();
@@ -485,7 +531,7 @@ void Bridge::testCoverProvider(QString id){
  m_coverTestService->request(track,setting("cover/resolution",1200).toInt(),true,[this](CoverArtResult){emit coverProvidersChanged();});
 }
 
-void Bridge::applyEnhancedCover(CoverArtResult result){if(result.path.isEmpty()||qMin(result.pixels.width(),result.pixels.height())<=qMin(m_phonePixels.width(),m_phonePixels.height()))return;if(m_phoneArtwork.isEmpty()){m_coverPalette=result.palette;m_artworkAccent=m_coverPalette.primary.name();}m_coverSource=result.source;m_enhancedPixels=result.pixels;emit coverProvidersChanged();m_nativeArtwork=result.thumbnailPath.isEmpty()?QString():QUrl::fromLocalFile(result.thumbnailPath).toString();m_artwork=QUrl::fromLocalFile(result.path).toString()+"?v="+QString::fromLatin1(result.digest.toHex().left(16));m_artworkDigest=result.digest;applyTheme();emit changed();updateNative();qInfo()<<"Cover enhancement"<<result.source<<"phone"<<m_phonePixels<<"enhanced"<<result.pixels<<"cache"<<result.cached;}
+void Bridge::applyEnhancedCover(CoverArtResult result,bool manual){if(result.path.isEmpty()||(!manual&&qMin(result.pixels.width(),result.pixels.height())<=qMin(m_phonePixels.width(),m_phonePixels.height())))return;if(manual||m_phoneArtwork.isEmpty()){m_coverPalette=result.palette;m_artworkAccent=m_coverPalette.primary.name();}m_coverSource=result.source;m_enhancedPixels=result.pixels;emit coverProvidersChanged();m_nativeArtwork=result.thumbnailPath.isEmpty()?QString():QUrl::fromLocalFile(result.thumbnailPath).toString();m_artwork=QUrl::fromLocalFile(result.path).toString()+"?v="+QString::fromLatin1(result.digest.toHex().left(16));m_artworkDigest=result.digest;applyTheme();emit changed();updateNative();qInfo()<<"Cover enhancement"<<result.source<<"phone"<<m_phonePixels<<"enhanced"<<result.pixels<<"cache"<<result.cached;}
 
 void Bridge::schedulePublishedCover(){
  const auto uri=m_media.value("artworkUri").toString();if(!PublishedCoverArtProvider::trusted(QUrl(uri))||title().isEmpty()){if(!m_publishedCoverKey.isEmpty()){m_publishedCoverKey.clear();++m_publishedCoverGeneration;m_publishedCover->cancel();m_publishedCoverDelay.stop();}return;}
@@ -517,5 +563,5 @@ void Bridge::setCacheDirectory(QUrl url){
  // Imported/manual lyrics are user data, and follow the cache selection by copy.
  for(const auto &file:QDir(oldRoot).entryInfoList({"*.manual.lrc","*.manual.json"},QDir::Files|QDir::NoSymLinks)){const auto destination=newRoot+"/"+file.fileName();if(!QFileInfo::exists(destination)&&!QFile::copy(file.absoluteFilePath(),destination)){emit notification(tr("Cache folder is not writable"));return;}}
  cancelLyricRequest();m_coverRetry.stop();m_coverService->cancel();m_coverTestService->cancel();m_settings.setValue("preferences/cache/directory",base);
- m_coverService->setDirectory(cachePath()+"/covers");m_coverRequestKey.clear();m_pendingCover={};m_cacheScan.start();emit settingsChanged();emit notification(tr("Cache folder changed; existing files are kept"));
+ cancelCoverSearch();m_coverSearchService->setDirectory(cachePath()+"/covers");m_coverService->setDirectory(cachePath()+"/covers");m_coverRequestKey.clear();m_pendingCover={};m_cacheScan.start();emit settingsChanged();emit notification(tr("Cache folder changed; existing files are kept"));
 }

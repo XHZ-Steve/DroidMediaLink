@@ -40,8 +40,8 @@ inline QVariantList descriptors(){
  S("shortcut/floating","Toggle floating player",0,3,"shortcut","Ctrl+Shift+P");
  S("connection/autoReconnect","Automatic reconnect",1,2,"bool",true);
  S("info/transport","Encrypted connection",1,3,"readonly","WSS / TLS 1.2");
- S("info/player","Current player",2,0,"readonly","");
- S("info/playerSelection","Player selection",2,0,"readonly",QCoreApplication::translate("Settings","Select the player in the phone app"));
+ S("info/player","Current player",2,1,"readonly","");
+ S("info/playerSelection","Preferred player",2,1,"readonly",QCoreApplication::translate("Settings","Select the player in the phone app"));
  action("floating","Floating player",2,1);
  S("cover/mode","Cover quality",2,0,"enum","off",0,1,1,QVariantList{QVariantMap{{"label",QCoreApplication::translate("Settings","Off")},{"value","off"}},QVariantMap{{"label",QCoreApplication::translate("Settings","Automatic enhancement")},{"value","auto"}},QVariantMap{{"label",QCoreApplication::translate("Settings","Prefer high resolution")},{"value","high"}}},false,QCoreApplication::translate("Settings","Online enhancement sends song, artist and album metadata to the enabled cover sources. Experimental sources may become unavailable. Cover images retain their owners' copyrights."));
  S("cover/phoneOnly","Use phone artwork only",2,0,"bool",false);
@@ -104,8 +104,17 @@ inline QVariantList descriptors(){
  S("home/windowBackgroundOpacity","Window background opacity",4,1,"number",1.,0,1,.01);
  S("theme/brand","Brand",4,0,"enum","spotify",0,1,1,options({"spotify","netease","qqmusic","kugou","youtube","apple"}));
  S("appearance/style","Software style",4,2,"enum","liquid",0,1,1,options({"standard","liquid"}));
- S("settings/groupFill","Settings group fill",4,4,"color","auto");
- S("settings/groupBorder","Settings group border",4,4,"color","#00000000");
+ S("animation/speed","Overall animation speed",4,4,"number",1.,.25,3.,.05);
+ S("animation/settings","Settings animation speed",4,4,"number",1.,.25,3.,.05);
+ S("animation/interface","Controls and dialogs speed",4,4,"number",1.,.25,3.,.05);
+ S("animation/layout","Playback layout animation speed",4,4,"number",1.,.25,3.,.05);
+ S("animation/artwork","Cover transition speed",4,4,"number",1.,.25,3.,.05);
+ S("animation/background","Background animation speed",4,4,"number",1.,.25,3.,.05);
+ S("animation/lyricsScroll","Lyric scroll animation speed",4,4,"number",1.,.25,3.,.05);
+ S("animation/lyricsHighlight","Lyric highlight animation speed",4,4,"number",1.,.25,3.,.05);
+ S("animation/glass","Glass response animation speed",4,4,"number",1.,.25,3.,.05);
+ S("settings/groupFill","Settings group fill",4,5,"color","auto");
+ S("settings/groupBorder","Settings group border",4,5,"color","#00000000");
  S("motion","Animations",4,3,"bool",true);
  const auto restartHelp=QCoreApplication::translate("Settings","Takes effect after restarting the app.");
  S("graphics/msaa","Multisample antialiasing",5,0,"enum",0,0,8,1,(QVariantList{

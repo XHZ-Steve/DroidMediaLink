@@ -49,6 +49,8 @@ class Bridge : public QObject {
  Q_PROPERTY(QVariantList lyricProviders READ lyricProviders NOTIFY lyricProvidersChanged)
  Q_PROPERTY(QVariantList coverProviders READ coverProviders NOTIFY coverProvidersChanged)
  Q_PROPERTY(QString coverSource READ coverSource NOTIFY coverProvidersChanged)
+ Q_PROPERTY(QVariantList coverSearchResults READ coverSearchResults NOTIFY coverSearchChanged)
+ Q_PROPERTY(bool coverSearchBusy READ coverSearchBusy NOTIFY coverSearchChanged)
  Q_PROPERTY(QVariantList lyricPresets READ lyricPresets NOTIFY settingsChanged)
  Q_PROPERTY(QVariantList appearancePresets READ appearancePresets NOTIFY settingsChanged)
  Q_PROPERTY(double ambientMonochromeStrength READ ambientMonochromeStrength NOTIFY changed)
@@ -65,6 +67,11 @@ class Bridge : public QObject {
  Q_PROPERTY(QVariantList lyricResults READ lyricResults NOTIFY lyricResultsChanged)
 public:
  Q_INVOKABLE void refreshCoverArt();
+ Q_INVOKABLE void searchCovers(QString title,QString artist,QString album);
+ Q_INVOKABLE void cancelCoverSearch();
+ Q_INVOKABLE bool selectCoverResult(int index);
+ QVariantList coverSearchResults() const;
+ bool coverSearchBusy() const{return !m_coverSearchSources.isEmpty();}
  Q_INVOKABLE void refreshCacheUsage();
  Q_INVOKABLE void setCacheDirectory(QUrl directory);
  QVariantMap cacheUsage()const{return m_cacheUsage;}
@@ -169,6 +176,7 @@ signals:
  void lyricLineChanged();void lyricProgressChanged();
  void lyricProvidersChanged();
  void coverProvidersChanged();
+ void coverSearchChanged();
  void commandFinished(QString requestId,bool success,QString error);
  void cacheUsageChanged();
  void updateChanged();
@@ -182,7 +190,13 @@ private:
  QTimer m_progress,m_heartbeat,m_retry,m_pairTimeout;QElapsedTimer m_anchor,m_lastPong;
  void schedulePublishedCover();void fetchPublishedCover();
  PublishedCoverArtProvider *m_publishedCover=nullptr;QTimer m_publishedCoverDelay;QString m_publishedCoverKey;quint64 m_publishedCoverGeneration=0;int m_publishedCoverAttempts=0;bool m_fromPublishedCover=false,m_publishedCoverActive=false;QByteArray m_receivedArtworkDigest;
- void enhanceCover(bool refresh=false);void applyEnhancedCover(CoverArtResult result);
+ void enhanceCover(bool refresh=false);void applyEnhancedCover(CoverArtResult result,bool manual=false);
+ void searchNextCoverSource();
+ CoverArtService *m_coverSearchService=nullptr;
+ CoverArtTrack m_coverSearchTrack;
+ QList<CoverArtResult> m_coverSearchMatches;
+ QStringList m_coverSearchSources;
+ QString m_coverSearchIdentity,m_manualCoverIdentity;
  CoverArtService *m_coverService=nullptr;QString m_coverRequestKey,m_phoneArtwork,m_nativeArtwork,m_phoneNativeArtwork;QByteArray m_phoneArtworkDigest;QSize m_phonePixels,m_enhancedPixels;CoverArtResult m_pendingCover;
  QTemporaryDir m_coverTestDirectory;CoverArtService *m_coverTestService=nullptr;QHash<QString,QVariantMap> m_coverStates,m_coverTestStates;QString m_coverSource,m_coverRetryKey;QTimer m_coverRetry;int m_coverAttempts=0;
  QTimer m_artworkRetry;int m_artworkRetryAttempts=0;

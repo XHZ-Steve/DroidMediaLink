@@ -11,6 +11,7 @@ Item {
     property bool light: false
     property bool motion: true
     property bool active: true
+    property real motionRate:1
     property int transitionDuration: 900
     property var configuration: ({})
     function setting(key, fallback) { const value=configuration[key];return value===undefined?fallback:value }
@@ -33,7 +34,7 @@ Item {
         running: field.animating
         repeat: true
         // Common period of the shader harmonics: wrap without a visible jump.
-        onTriggered: field.phase=(field.phase+interval*.001*field.setting("backgroundFlow",.35))%(2*Math.PI/.65)
+        onTriggered: field.phase=(field.phase+interval*.001*field.setting("backgroundFlow",.35)*field.motionRate)%(2*Math.PI/.65)
     }
     ShaderEffect {
         anchors.fill: parent

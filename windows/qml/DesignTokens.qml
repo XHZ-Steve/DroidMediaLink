@@ -1,8 +1,10 @@
 import QtQuick
+import "Motion.js" as Motion
 
 QtObject {
     property bool light: false
     property bool motion: true
+    property real motionRate:1
     property color accent: "#bac9ed"
     readonly property string family: "Microsoft YaHei UI"
     readonly property string displayFamily: "Segoe UI Variable Display"
@@ -25,10 +27,8 @@ QtObject {
     readonly property int display:42
     readonly property int artist:18
     readonly property int gap: 8
-    readonly property int fast: motion ? 140 : 0
-    readonly property int change: motion ? 340 : 0
-    readonly property int atmosphere: motion ? 900 : 0
-    readonly property int progressMotion:motion?220:0
+    readonly property int fast: motion ? Motion.duration(140,motionRate) : 0
+    readonly property int progressMotion:motion?Motion.duration(220,motionRate):0
     readonly property color text: light ? "#202431" : "#f5f5fa"
     readonly property color secondaryText: light ? "#555c70" : "#bfc2d1"
     readonly property color faintText: light ? "#626a7c" : "#9299ad"

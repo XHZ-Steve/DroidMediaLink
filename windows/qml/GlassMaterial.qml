@@ -1,4 +1,5 @@
 import QtQuick
+import "Motion.js" as Motion
 import "../vendor/liquidglass/LiquidGlass" as Liquid
 
 // Local optical surface for the playback dock, floating and tray windows.
@@ -9,6 +10,7 @@ Item {
     property bool glassEnabled: true
     property bool active: visible
     property bool motion: true
+    property real motionRate:1
     property real rasterScale:1
     property var configuration: ({})
     function setting(key, fallback) { const value=configuration[key];return value===undefined?fallback:value }
@@ -25,7 +27,7 @@ Item {
     property bool followsMovement: false
     // Optical response is driven by real pointer interaction, never an idle timer.
     property real hoverResponse: active && motion && setting("glassMotion",true) && opticalHover.hovered ? setting("glassMotionIntensity",.35) : 0
-    Behavior on hoverResponse { NumberAnimation {duration:root.motion&&root.active?160:0;easing.type:Easing.OutCubic} }
+    Behavior on hoverResponse { NumberAnimation {duration:root.motion&&root.active?Motion.duration(160,root.motionRate):0;easing.type:Easing.OutCubic} }
     readonly property real effectiveRadius: setting("glassRadius",cornerRadius)
     readonly property color effectiveTintSource: setting("glassTint","auto")==="auto"?tintColor:setting("glassTint","auto")
     readonly property color effectiveTint: Qt.rgba(backdropColor.r+(effectiveTintSource.r-backdropColor.r)*setting("glassTintStrength",.4),backdropColor.g+(effectiveTintSource.g-backdropColor.g)*setting("glassTintStrength",.4),backdropColor.b+(effectiveTintSource.b-backdropColor.b)*setting("glassTintStrength",.4),1)

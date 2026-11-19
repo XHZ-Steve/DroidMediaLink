@@ -212,7 +212,13 @@ Item {
             compare(page.searchResults.length,1)
             waitForRendering(page)
             const hit=findChild(page,"search-lyrics/offset")
+            const heading=findChild(page,"search-group-3/4")
             verify(hit)
+            verify(heading)
+            mouseClick(heading)
+            compare(hit.visible,false)
+            mouseClick(heading)
+            compare(hit.visible,true)
             mouseClick(hit,hit.width/2,hit.height/2)
             compare(page.activeGroup,3);compare(page.activeSection,4)
             verify(page.advancedExpanded)
@@ -248,6 +254,9 @@ Item {
             mouseClick(swatch)
             tryCompare(picker,"opened",true)
             compare(picker.popupType,Popup.Item)
+            const plane=findChild(picker.contentItem,"settingsColorPlane")
+            verify(plane&&plane.width>0)
+            compare(plane.width,plane.height)
             verify(picker.readColor("#7f1a3c5d"))
             picker.accept()
             compare(controller.values.testColor,"#7f1a3c5d")
@@ -261,6 +270,16 @@ Item {
         function test_action_routes_to_host(){
             page.runAction({key:"test-search",action:"searchDevices"})
             compare(searchSpy.count,1)
+        }
+        function test_global_and_settings_animation_speeds_compose(){
+            page.motion=true
+            compare(page.duration(720),720)
+            controller.setSetting("animation/speed",2)
+            compare(page.duration(720),360)
+            controller.setSetting("animation/settings",.5)
+            compare(page.duration(720),720)
+            page.motion=false
+            compare(page.duration(720),0)
         }
         function test_enum_commits_underlying_value(){
             const choice=findChild(page,"enum-language")

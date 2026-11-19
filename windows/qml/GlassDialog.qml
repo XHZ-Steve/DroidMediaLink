@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import "Motion.js" as Motion
 
 // Standard Dialog semantics, shared optical surface and keyboard-only focus ring.
 Dialog {
@@ -8,6 +9,8 @@ Dialog {
     property var configuration: ({})
     property bool light: false
     property bool motion: true
+    property real motionRate:1
+    property real glassMotionRate:1
     property bool glassEnabled: true
     property bool highContrast: false
     property color foreground: light ? "#202431" : "#f5f5fa"
@@ -47,12 +50,12 @@ Dialog {
     }
     background: GlassMaterial {
         sourceItem: control.materialSource; configuration: control.configuration
-        active: control.visible; motion: control.motion
+        active: control.visible; motion: control.motion;motionRate:control.glassMotionRate
         glassEnabled: control.glassEnabled; dark: !control.light
         backdropColor: control.surface; tintColor: control.surface; fallbackColor: control.surface
         increasedContrast: control.highContrast?1:0; cornerRadius: 24
     }
     Overlay.modal: Rectangle { color: control.light?"#25202c48":"#65060812" }
-    enter: Transition { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: control.motion?150:0 } }
-    exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: control.motion?120:0 } }
+    enter: Transition { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: control.motion?Motion.duration(150,control.motionRate):0 } }
+    exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: control.motion?Motion.duration(120,control.motionRate):0 } }
 }

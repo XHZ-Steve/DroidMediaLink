@@ -35,6 +35,19 @@ Item {
             const timeline=findChild(lyricView,"lyricTimeline");const row=timeline.itemAtIndex(0);verify(row!==null)
             mouseClick(row,20,20,Qt.LeftButton);tryCompare(seeks,"count",1);compare(seeks.signalArguments[0][0],1000)
         }
+        function test_covered_lyrics_cannot_seek(){
+            lyricView.configuration=({fontSize:32,fadeTop:70,fadeBottom:70})
+            const timeline=findChild(lyricView,"lyricTimeline")
+            const row=timeline.itemAtIndex(0)
+            verify(row!==null)
+            timeline.manual()
+            timeline.contentY=row.y
+            mouseClick(row,20,20,Qt.LeftButton)
+            compare(seeks.count,0)
+            timeline.contentY=row.y-120
+            mouseClick(row,20,20,Qt.LeftButton)
+            tryCompare(seeks,"count",1)
+        }
         function test_manual_scroll_defers_follow(){
             const timeline=findChild(lyricView,"lyricTimeline");timeline.manual();verify(timeline.userScrolling)
             const y=timeline.contentY;controller.currentLine=1;controller.lyricPosition=6000;wait(30);compare(timeline.contentY,y)
