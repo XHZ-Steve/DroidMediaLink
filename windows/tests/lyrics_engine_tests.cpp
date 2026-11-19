@@ -150,8 +150,17 @@ public:
   {
    bridge.m_nativeUpdate=[](const char* json){nativePayload=QJsonDocument::fromJson(json).object();return 0;};
    bridge.m_online=true;bridge.setUiVisible(false);bridge.applyMedia({{"state","playing"},{"positionMs",1000},{"durationMs",30000},{"speed",1}});
-   QEventLoop wait;QTimer::singleShot(1200,&wait,&QEventLoop::quit);wait.exec();
-   if(nativePayload["positionMs"].toInteger()<1500||bridge.m_progress.isActive())return 104;
+   auto publishedProgress=[&]{return nativePayload["positionMs"].toInteger()>=1500;};
+   QEventLoop wait;
+   QObject::connect(&bridge.m_smtcClock,&QTimer::timeout,&wait,[&]{if(publishedProgress())wait.quit();});
+   // The existing clock can tick just after playback restarts. Wait for a
+   // published position that crossed the threshold, regardless of timer phase.
+   QTimer::singleShot(4000,&wait,&QEventLoop::quit);
+   if(!publishedProgress())wait.exec();
+   if(!publishedProgress()||bridge.m_progress.isActive()){
+    qCritical()<<"Hidden SMTC timeline:"<<nativePayload["positionMs"]<<"UI timer active:"<<bridge.m_progress.isActive();
+    return 104;
+   }
    bridge.m_online=false;bridge.m_nativeUpdate=nullptr;
   }
   {
