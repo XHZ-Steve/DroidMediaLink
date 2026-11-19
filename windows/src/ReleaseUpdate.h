@@ -21,7 +21,7 @@ inline QJsonObject asset(const QJsonObject &release){
   auto item=value.toObject();const auto name=item.value("name").toString();
   const auto url=QUrl(item.value("browser_download_url").toString());
   if(name.startsWith("DroidMediaLink-")&&name.endsWith("-windows-x64-setup.exe")&&
-     url.scheme()=="https"&&url.host()=="github.com"&&url.path().startsWith("/XHZ-Steve/DroidMusicLink/releases/download/")&&
+     url.scheme()=="https"&&url.host()=="github.com"&&url.path().startsWith("/XHZ-Steve/DroidMediaLink/releases/download/")&&
      QRegularExpression("^sha256:[0-9a-fA-F]{64}$").match(item.value("digest").toString()).hasMatch()&&
      item.value("size").toInteger()>0&&item.value("size").toInteger()<=160*1024*1024)return item;
  }

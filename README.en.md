@@ -4,7 +4,7 @@
 
 **Your Android music, playback controls and synchronized lyrics on Windows.**
 
-[Download v1.1](https://github.com/XHZ-Steve/DroidMusicLink/releases/tag/v1.1) · [简体中文](README.md) · [Get started](#get-started) · [Report an issue](https://github.com/XHZ-Steve/DroidMusicLink/issues)
+[Download v1.2.0](https://github.com/XHZ-Steve/DroidMediaLink/releases/tag/v1.2.0) · [简体中文](README.md) · [Get started](#get-started) · [Report an issue](https://github.com/XHZ-Steve/DroidMediaLink/issues)
 
 </div>
 
@@ -42,10 +42,10 @@ Android listens passively and does not periodically fetch online artwork. Cover 
 
 | Platform | Package | Usage |
 | :--- | :--- | :--- |
-| Windows x64 | [Installer EXE](https://github.com/XHZ-Steve/DroidMusicLink/releases/download/v1.1/DroidMediaLink-1.1.0-windows-x64-setup.exe) | Install and launch |
-| Windows x64 | [Portable ZIP](https://github.com/XHZ-Steve/DroidMusicLink/releases/download/v1.1/DroidMediaLink-1.1.0-windows-x64.zip) | Extract everything; run `DroidMediaLink.exe` |
-| Android 8.0+ | [APK](https://github.com/XHZ-Steve/DroidMusicLink/releases/download/v1.1/DroidMediaLink-1.1.0-android-test-signed.apk) | Install and complete permission onboarding |
-| Integrity | [SHA256SUMS.txt](https://github.com/XHZ-Steve/DroidMusicLink/releases/download/v1.1/SHA256SUMS.txt) | Verify downloaded files |
+| Windows x64 | [Installer EXE](https://github.com/XHZ-Steve/DroidMediaLink/releases/download/v1.2.0/DroidMediaLink-1.2.0-windows-x64-setup.exe) | Install and launch |
+| Windows x64 | [Portable ZIP](https://github.com/XHZ-Steve/DroidMediaLink/releases/download/v1.2.0/DroidMediaLink-1.2.0-windows-x64.zip) | Extract everything; run `DroidMediaLink.exe` |
+| Android 8.0+ | [APK](https://github.com/XHZ-Steve/DroidMediaLink/releases/download/v1.2.0/DroidMediaLink-1.2.0-android-test-signed.apk) | Install and complete permission onboarding |
+| Integrity | [SHA256SUMS.txt](https://github.com/XHZ-Steve/DroidMediaLink/releases/download/v1.2.0/SHA256SUMS.txt) | Verify downloaded files |
 
 Windows 11 x64 is the primary target. Windows packages are not Authenticode-signed; the APK uses development signing. Android updates require the same signing identity and system installation permission. Windows closes during update installation.
 
@@ -74,4 +74,4 @@ New installations use the maintainer's current optical-glass, fluid-lighting and
 
 Built with open-source projects including [qwindowkit](https://github.com/stdware/qwindowkit), [liquidglass](https://github.com/shayann07/liquidglass), [AndroidLiquidGlass / Backdrop](https://github.com/Kyant0/AndroidLiquidGlass) and Lucide. See [third-party notices](THIRD_PARTY_NOTICES.md) and [LICENSE](LICENSE).
 
-Product name: **DroidMediaLink**. Repository name: **DroidMusicLink**.
+Project and repository: **DroidMediaLink**.

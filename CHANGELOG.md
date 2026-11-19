@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.0 — 2026-11-19
+
+- Add manual cover search with previews and improved title, artist and edition matching.
+- Keep lyric text aligned while preserving glow and prevent seeking through the lyric mask. Show a dedicated message for instrumentals.
+- Add collapsible settings search groups, frosted sticky headers, a redesigned color picker and a restart prompt for pending settings.
+- Add overall and per-category animation speeds, refined settings transitions and graphics controls.
+- Improve cover palette extraction for dark artwork, DPI scaling, Android media state and Windows SMTC timeline synchronization.
+- Use the renamed GitHub repository for update checks. Windows and Android report 1.2.0, and Android uses build 5.
+
 ## Android 1.1.0 build 4 — 2026-11-15
 
 - Read the installed package version from Android; increment versionCode to 4 and show the version/build in settings.

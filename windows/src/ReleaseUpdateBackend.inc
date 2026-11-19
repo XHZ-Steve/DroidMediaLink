@@ -5,7 +5,7 @@
 void Bridge::cancelUpdate(){if(m_updateReply)m_updateReply->abort();}
 void Bridge::checkUpdates(){
  if(m_updateBusy)return;m_updateAsset={};m_updateBusy=true;m_updateProgress=-1;emit updateChanged();
- QNetworkRequest request(QUrl("https://api.github.com/repos/XHZ-Steve/DroidMusicLink/releases/latest"));
+ QNetworkRequest request(QUrl("https://api.github.com/repos/XHZ-Steve/DroidMediaLink/releases/latest"));
  request.setRawHeader("User-Agent",("DroidMediaLink/"+QCoreApplication::applicationVersion()).toUtf8());request.setRawHeader("Accept","application/vnd.github+json");request.setTransferTimeout(15000);
  auto reply=m_updateNetwork.get(request);m_updateReply=reply;
  QTimer::singleShot(20000,reply,[reply]{if(!reply->isFinished()){reply->setProperty("updateTimedOut",true);reply->abort();}});

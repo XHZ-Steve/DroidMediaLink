@@ -42,7 +42,7 @@ internal object ReleaseUpdates {
  }
  suspend fun check(context:Context):ReleaseAsset?=withContext(Dispatchers.IO) {
   val current=installedVersion(context)
-  val connection=connect("https://api.github.com/repos/XHZ-Steve/DroidMusicLink/releases/latest")
+  val connection=connect("https://api.github.com/repos/XHZ-Steve/DroidMediaLink/releases/latest")
   try {
    if(connection.responseCode==404)return@withContext null
    val bytes=connection.inputStream.use { input->val output=java.io.ByteArrayOutputStream();val buffer=ByteArray(8192)
@@ -53,7 +53,7 @@ internal object ReleaseUpdates {
    val assets=release.getJSONArray("assets")
    for(i in 0 until assets.length()) {
     val asset=assets.getJSONObject(i);val name=asset.getString("name");val url=asset.getString("browser_download_url");val digest=asset.optString("digest");val size=asset.optLong("size")
-    if(name.startsWith("DroidMediaLink-")&&name.endsWith("-android-test-signed.apk")&&url.startsWith("https://github.com/XHZ-Steve/DroidMusicLink/releases/download/")&&Regex("sha256:[a-fA-F0-9]{64}").matches(digest)&&size in 1..160L*1024*1024)
+    if(name.startsWith("DroidMediaLink-")&&name.endsWith("-android-test-signed.apk")&&url.startsWith("https://github.com/XHZ-Steve/DroidMediaLink/releases/download/")&&Regex("sha256:[a-fA-F0-9]{64}").matches(digest)&&size in 1..160L*1024*1024)
      return@withContext ReleaseAsset(tag,url,size,digest.removePrefix("sha256:").lowercase(),releaseSummary(release.optString("body")))
    }
    error("Missing verified APK")

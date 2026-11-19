@@ -4,7 +4,7 @@
 
 **在 Windows 上查看手机音乐、控制播放、显示同步歌词。**
 
-[下载 v1.1](https://github.com/XHZ-Steve/DroidMusicLink/releases/tag/v1.1) · [English](README.en.md) · [使用方法](#开始使用) · [反馈问题](https://github.com/XHZ-Steve/DroidMusicLink/issues)
+[下载 v1.2.0](https://github.com/XHZ-Steve/DroidMediaLink/releases/tag/v1.2.0) · [English](README.en.md) · [使用方法](#开始使用) · [反馈问题](https://github.com/XHZ-Steve/DroidMediaLink/issues)
 
 </div>
 
@@ -42,10 +42,10 @@ Android 是被动连接服务，不周期性联网搜索封面；网络封面增
 
 | 平台 | 文件 | 使用方式 |
 | :--- | :--- | :--- |
-| Windows x64 | [安装版 EXE](https://github.com/XHZ-Steve/DroidMusicLink/releases/download/v1.1/DroidMediaLink-1.1.0-windows-x64-setup.exe) | 安装后启动 |
-| Windows x64 | [便携版 ZIP](https://github.com/XHZ-Steve/DroidMusicLink/releases/download/v1.1/DroidMediaLink-1.1.0-windows-x64.zip) | 完整解压，运行 `DroidMediaLink.exe` |
-| Android 8.0+ | [APK](https://github.com/XHZ-Steve/DroidMusicLink/releases/download/v1.1/DroidMediaLink-1.1.0-android-test-signed.apk) | 安装后完成权限引导 |
-| 校验 | [SHA256SUMS.txt](https://github.com/XHZ-Steve/DroidMusicLink/releases/download/v1.1/SHA256SUMS.txt) | 核对下载文件完整性 |
+| Windows x64 | [安装版 EXE](https://github.com/XHZ-Steve/DroidMediaLink/releases/download/v1.2.0/DroidMediaLink-1.2.0-windows-x64-setup.exe) | 安装后启动 |
+| Windows x64 | [便携版 ZIP](https://github.com/XHZ-Steve/DroidMediaLink/releases/download/v1.2.0/DroidMediaLink-1.2.0-windows-x64.zip) | 完整解压，运行 `DroidMediaLink.exe` |
+| Android 8.0+ | [APK](https://github.com/XHZ-Steve/DroidMediaLink/releases/download/v1.2.0/DroidMediaLink-1.2.0-android-test-signed.apk) | 安装后完成权限引导 |
+| 校验 | [SHA256SUMS.txt](https://github.com/XHZ-Steve/DroidMediaLink/releases/download/v1.2.0/SHA256SUMS.txt) | 核对下载文件完整性 |
 
 Windows 11 x64 是主要目标。Windows 包尚未做 Authenticode 签名；Android APK 使用开发签名。更新不会要求你卸载旧版本；Android 仍需系统安装授权及相同签名，Windows 更新安装时会退出应用。
 

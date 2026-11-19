@@ -90,7 +90,7 @@ int main(int argc,char **argv){QCoreApplication app(argc,argv);QTemporaryDir dir
  if(qAbs(bridge.appearanceConfig("global")["glassDispersion"].toDouble()-.23)>.0001)return 82;
  if(ReleaseUpdate::newer("v1.1","1.1.0")||ReleaseUpdate::newer("v1.0","1.1.0")||ReleaseUpdate::newer("v1.2-beta","1.1.0")||!ReleaseUpdate::newer("v1.10","1.9.9"))return 90;
  if(!ReleaseUpdate::asset(QJsonObject{{"tag_name","v9.0"},{"assets",QJsonArray{QJsonObject{{"name","DroidMediaLink-9-windows-x64-setup.exe"},{"browser_download_url","https://evil.test/file.exe"},{"size",10},{"digest","sha256:"+QString(64,'a')}}}}}).isEmpty())return 91;
- QJsonObject installer{{"name","DroidMediaLink-1.2-windows-x64-setup.exe"},{"browser_download_url","https://github.com/XHZ-Steve/DroidMusicLink/releases/download/v1.2/setup.exe"},{"size",123},{"digest","sha256:"+QString(64,'a')}};
+ QJsonObject installer{{"name","DroidMediaLink-1.2-windows-x64-setup.exe"},{"browser_download_url","https://github.com/XHZ-Steve/DroidMediaLink/releases/download/v1.2/setup.exe"},{"size",123},{"digest","sha256:"+QString(64,'a')}};
  QJsonObject release{{"assets",QJsonArray{installer}}};if(ReleaseUpdate::asset(release).isEmpty())return 92;
  release["prerelease"]=true;if(!ReleaseUpdate::asset(release).isEmpty())return 93;
  if(!UpdateTests::rejectsCorruptDownload(bridge))return 94;

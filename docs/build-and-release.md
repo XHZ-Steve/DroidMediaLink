@@ -58,4 +58,4 @@ CI builds both platforms and uploads artifacts. No workflow pushes a Git tag,
 creates a Release, or publishes automatically. Before manual publication, run
 the real-device matrix in `testing.md`, audit license files, sign the packages,
 compute SHA-256, and attach release notes. Client update checks point to
-`XHZ-Steve/DroidMusicLink` GitHub Releases. A missing release is a normal error.
+`XHZ-Steve/DroidMediaLink` GitHub Releases. A missing release is a normal error.
