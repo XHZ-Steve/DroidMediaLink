@@ -50,6 +50,8 @@ class Bridge : public QObject {
  Q_PROPERTY(QVariantList coverProviders READ coverProviders NOTIFY coverProvidersChanged)
  Q_PROPERTY(QString coverSource READ coverSource NOTIFY coverProvidersChanged)
  Q_PROPERTY(QVariantList lyricPresets READ lyricPresets NOTIFY settingsChanged)
+ Q_PROPERTY(QVariantList appearancePresets READ appearancePresets NOTIFY settingsChanged)
+ Q_PROPERTY(double ambientMonochromeStrength READ ambientMonochromeStrength NOTIFY changed)
  Q_PROPERTY(QVariantList devices READ devices NOTIFY changed)
  Q_PROPERTY(QVariantList settingsCatalog READ settingsCatalog CONSTANT)
  Q_PROPERTY(QVariantList appearanceDescriptors READ appearanceDescriptors CONSTANT)
@@ -90,6 +92,11 @@ public:
  QString lyricProvider()const{return m_lyricProvider;}
  double lyricMatchScore()const{return m_lyricMatchScore;}
  QVariantList lyricProviders()const;
+ QVariantList appearancePresets()const;
+ double ambientMonochromeStrength()const{return m_coverPalette.monochromeStrength;}
+ Q_INVOKABLE bool saveAppearancePreset(QString name);
+ Q_INVOKABLE void renameAppearancePreset(QString oldName,QString newName);
+ Q_INVOKABLE void deleteAppearancePreset(QString name);
  QVariantList lyricPresets()const;
  Q_INVOKABLE void saveLyricPreset(QString name);
  Q_INVOKABLE void applyLyricPreset(QString name);

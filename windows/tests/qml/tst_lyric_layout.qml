@@ -18,7 +18,7 @@ Item {
     SignalSpy{id:seeks;target:lyricView;signalName:"seekRequested"}
     TestCase {
         name:"LyricLayout";when:windowShown
-        function init(){controller.lyrics=[{time:1000,end:5000,text:"There's gotta be another way out",words:[]},{time:5000,end:9000,text:"歌声穿过夜晚 落在窗边",translation:"A quiet line",words:[]}];lyricView.configuration=({fontSize:32,fontWeight:400,activeWeight:700,activeScale:1.1,longLine:"wrap",fadeTop:0,fadeBottom:0});lyricView.flushAlignment=false;controller.currentLine=0;controller.lyricPosition=1000;seeks.clear();lyricView.recover();wait(30)}
+        function init(){controller.lyrics=[{time:1000,end:5000,text:"There's gotta be another way out",words:[]},{time:5000,end:9000,text:"歌声穿过夜晚 落在窗边",translation:"A quiet line",words:[]}];lyricView.configuration=({fontSize:32,fontWeight:400,activeWeight:700,activeScale:1.1,longLine:"wrap",fadeTop:0,fadeBottom:0});lyricView.settingsPrefix="lyrics";lyricView.centerCurrentText=false;lyricView.flushAlignment=false;controller.currentLine=0;controller.lyricPosition=1000;seeks.clear();lyricView.recover();wait(30)}
         function glyphPositions(row){const flow=findChild(row,"lyricWords");verify(flow!==null);return JSON.stringify(flow.children.filter(function(child){return child.objectName==="lyricGlyph"}).map(function(child){return [child.x,child.y,child.width,child.height]}))}
         function test_weight_and_scale_preserve_line_breaks(){
             const timeline=findChild(lyricView,"lyricTimeline");tryVerify(function(){return timeline.itemAtIndex(0)!==null})
@@ -45,6 +45,24 @@ Item {
             const timeline=findChild(lyricView,"lyricTimeline")
             tryVerify(function(){return timeline.positioned})
             const row=timeline.itemAtIndex(0);verify(row!==null);verify(!row.selected);compare(lyricView.line,0)
+        }
+        function test_negative_translation_offset_centers_pair(){
+            lyricView.settingsPrefix="desktopLyrics";lyricView.centerCurrentText=true;lyricView.configuration=({fontSize:32,translation:true,groupSpacing:-50,romanization:true,fadeTop:0,fadeBottom:0})
+            controller.lyrics=[{time:1000,end:5000,text:"TEST original",translation:"测试译文",romanization:"TEST romanization",words:[]}];wait(80)
+            compare(lyricView.translationGap,-44)
+            const row=findChild(lyricView,"lyricTimeline").itemAtIndex(0);verify(row!==null);verify(row.height>0)
+            const original=findChild(row,"lyricOriginalSlot"),translation=findChild(row,"lyricTranslationText")
+            verify(original!==null&&translation!==null)
+            const top=translation.mapToItem(row,0,0).y,bottom=top+translation.height
+            verify(Math.abs(row.primaryCenterOffset-(Math.min(0,top)+Math.max(original.height,bottom))/2)<.1)
+            lyricView.settingsPrefix="lyrics";lyricView.configuration=({fontSize:32,translationSpacing:-50,fadeTop:0,fadeBottom:0});wait(30);compare(lyricView.translationGap,-50)
+        }
+        function test_word_timing_uses_one_continuous_curve(){
+            const row={words:[{text:"longword",time:0,end:100},{text:"short",time:100,end:200},{text:"final",time:200,end:10000}]}
+            const control=lyricView.scrollControls(row);verify(control.x<=control.y);verify(Math.abs(control.x-1/3)>.01||Math.abs(control.y-2/3)>.01)
+            let last=0
+            for(let i=0;i<=1000;i++){const next=lyricView.scrollCurve(i/1000,control);verify(next>=last);verify(next-last<.02);last=next}
+            compare(lyricView.scrollCurve(0,control),0);compare(lyricView.scrollCurve(1,control),1)
         }
         function test_long_line_scroll_eases_and_is_seekable(){
             const words=[];for(let i=0;i<50;i++)words.push({text:"Longword ",time:1000+i*200,end:1200+i*200})

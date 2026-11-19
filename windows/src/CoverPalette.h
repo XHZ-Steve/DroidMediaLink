@@ -8,6 +8,7 @@
 
 struct CoverPalette {
  QColor primary{"#527a9c"},secondary{"#75658f"},deep{"#101c29"};
+ double monochromeStrength=0;
  static CoverPalette fromImage(const QImage &cover) {
   if(cover.isNull())return {};
   // Keep distinct color populations instead of averaging complementary hues.
@@ -55,6 +56,24 @@ struct CoverPalette {
    // Achromatic covers stay achromatic; no arbitrary green/brand tint is added.
    return QColor::fromHslF(std::max(0.,double(color.hslHueF())),chromatic?std::min(saturation,double(color.hslSaturationF())):0.,std::clamp(double(color.lightnessF()),low,high));
   };
-  return {tone(primary,.35,.64,.78),tone(secondary,.28,.68,.64),tone(deep,.075,.16,.52)};
+  CoverPalette palette{tone(primary,.35,.64,.78),tone(secondary,.28,.68,.64),tone(deep,.075,.16,.52)};
+  // Only a narrow, highly saturated source gamut needs neutral lighting.
+  // Count source pixels, not the three selected colours: rich covers keep
+  // their existing rendering even when their dominant colour is saturated.
+  int hueSamples=0,nearPrimary=0;
+  for(const auto &bin:bins){
+   if(!bin.count)continue;
+   const auto color=QColor::fromRgbF(bin.r/bin.count/255.,bin.g/bin.count/255.,bin.b/bin.count/255.);
+   if(color.hslSaturationF()<.16||color.lightnessF()<.025||color.lightnessF()>.96)continue;
+   double hue=std::abs(color.hslHueF()-primary.hslHueF());hue=std::min(hue,1.-hue);
+   hueSamples+=bin.count;if(hue<.06)nearPrimary+=bin.count;
+  }
+  if(chromatic&&hueSamples>total*.1){
+   const double concentration=double(nearPrimary)/hueSamples;
+   const double narrow=std::clamp((concentration-.92)/.08,0.,1.);
+   const double saturated=std::clamp((double(palette.primary.hslSaturationF())-.65)/.13,0.,1.);
+   palette.monochromeStrength=narrow*saturated;
+  }
+  return palette;
  }
 };

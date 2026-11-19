@@ -7,6 +7,11 @@ Item {
     Rectangle { anchors.fill: parent; color: "#10121b" }
     QtObject {
         id: controller
+        property var appearancePresets:[{name:"balanced",label:"Balanced",builtIn:true}]
+        function saveAppearancePreset(name){appearancePresets=appearancePresets.concat([{name:name,builtIn:false}]);revision++;return true}
+        function applyAppearancePreset(name){lastAppliedPreset=name}
+        function renameAppearancePreset(oldName,newName){appearancePresets=appearancePresets.map(function(row){return row.name===oldName?{name:newName,builtIn:false}:row});revision++}
+        function deleteAppearancePreset(name){appearancePresets=appearancePresets.filter(function(row){return row.name!==name});revision++}
         property var lyricPresets:[{name:"soft",label:"Soft",builtIn:true}]
         property string lastAppliedPreset:""
         function saveLyricPreset(name){lyricPresets=lyricPresets.concat([{name:name,builtIn:false}]);revision++}
@@ -65,6 +70,21 @@ Item {
         name:"SettingsPage"
         when:windowShown
         function init(){page.navigate(0,0);controller.values={motion:true};controller.appearance={glassMotion:true,glassBlur:2.4,glassDispersion:.07};controller.inherit=true;controller.revision++;searchSpy.clear();waitForRendering(page)}
+        function test_appearance_preset_dialogs_are_independent(){
+            page.navigate(4,0);waitForRendering(page)
+            tryVerify(function(){return findChild(page,"appearancePresetSave")!==null})
+            page.editPresetName("save",true);wait(30)
+            const field=findChild(page,"presetNameField");field.text="TEST appearance"
+            mouseClick(findChild(page,"presetNameSave"));wait(30)
+            verify(controller.appearancePresets.some(function(row){return row.name==="TEST appearance"}))
+            verify(!controller.lyricPresets.some(function(row){return row.name==="TEST appearance"}))
+            page.editPresetName("rename",true);wait(30);field.text="TEST renamed appearance"
+            mouseClick(findChild(page,"presetNameSave"));wait(30)
+            verify(controller.appearancePresets.some(function(row){return row.name==="TEST renamed appearance"}))
+            const dialog=findChild(page,"presetDeleteDialog");dialog.open();wait(30)
+            mouseClick(findChild(page,"presetDeleteConfirm"));wait(30)
+            verify(!controller.appearancePresets.some(function(row){return row.name==="TEST renamed appearance"}))
+        }
         function test_preset_dialogs_persist_rename_and_delete(){
             page.navigate(3,6);waitForRendering(page)
             page.editPresetName("save");wait(30)
@@ -202,6 +222,7 @@ Item {
         function test_cover_provider_test_toggle_and_drag(){
             controller.setSetting("cover/source","netease,qq,musicbrainz")
             page.navigate(2,0);waitForRendering(page)
+            tryVerify(function(){return findChild(page,"cover-provider-test-netease")!==null})
             const testButton=findChild(page,"cover-provider-test-netease")
             const toggle=findChild(page,"cover-provider-enabled-netease")
             verify(testButton);verify(toggle)

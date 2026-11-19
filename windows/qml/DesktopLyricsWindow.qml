@@ -46,7 +46,7 @@ Window {
  Timer{id:saveGeometry;interval:350;onTriggered:{window.controller.setSetting("lyricsX",window.x);window.controller.setSetting("lyricsY",window.y);window.controller.setSetting("desktopLyrics/windowWidth",window.width);window.controller.setSetting("desktopLyrics/windowHeight",window.height)}}
  Loader{anchors.fill:parent;active:window.visible&&window.pref("desktopLyrics/background",false)
   sourceComponent:Item{
-   AmbientField{id:ambient;anchors.fill:parent;visible:false;primary:window.controller.ambientPrimary;secondary:window.controller.ambientSecondary;accent:window.controller.ambientAccent;deep:window.controller.ambientDeep;motion:false;active:window.visible;configuration:window.controller.appearanceConfig("background")}
+   AmbientField{id:ambient;anchors.fill:parent;visible:false;primary:window.controller.ambientPrimary;secondary:window.controller.ambientSecondary;accent:window.controller.ambientAccent;deep:window.controller.ambientDeep;monochromeStrength:typeof window.controller.ambientMonochromeStrength === "number" ? window.controller.ambientMonochromeStrength : 0;motion:false;active:window.visible;configuration:window.controller.appearanceConfig("background")}
    GlassMaterial{anchors.fill:parent;sourceItem:ambient;active:window.visible;configuration:window.controller.appearanceConfig("desktop");glassEnabled:window.pref("appearance/style","liquid")==="liquid";motion:window.pref("motion",true);dark:true;fallbackColor:"#66222a35"}
   }
  }

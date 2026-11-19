@@ -212,12 +212,13 @@ void Bridge::previewCoverForTest(QString path){
 bool Bridge::initializeNative(quintptr hwnd){m_native.setFileName(QCoreApplication::applicationDirPath()+"/WindowsNative.dll");using Init=int(*)(void*,void(*)(const char*,double));auto init=reinterpret_cast<Init>(m_native.resolve("dml_smtc_init"));m_nativeUpdate=reinterpret_cast<NativeUpdate>(m_native.resolve("dml_smtc_update"));if(!init||!m_nativeUpdate){emit notification(tr("System media bridge unavailable"));return false;}nativeOwner=this;if(init(reinterpret_cast<void*>(hwnd),nativeCommand)!=1){emit notification(tr("System media controls unavailable"));m_nativeUpdate=nullptr;return false;}updateNative();return true;}void Bridge::updateNative(){if(m_nativeUpdate){auto media=m_media;media.remove("phoneLyrics");media.remove("phoneTranslation");media.remove("artworkUri");media["online"]=m_online&&setting("media/smtc",true).toBool();media["positionMs"]=position();media["artwork"]=QDir::toNativeSeparators(QUrl(m_nativeArtwork.isEmpty()?m_artwork:m_nativeArtwork).toLocalFile());media["artworkRevision"]=QString::fromLatin1(m_artworkDigest.toHex());const auto json=QJsonDocument(media).toJson(QJsonDocument::Compact);const auto previous=m_nativeStatus;m_nativeStatus=m_nativeUpdate(json.constData());if(m_nativeStatus!=0&&m_nativeStatus!=previous)qWarning()<<"SMTC update failed, HRESULT:"<<Qt::hex<<quint32(m_nativeStatus);}}
 #include "SettingsBackend.inc"
 void Bridge::exportSettings(QUrl url){
- QJsonObject preferences,appearance,presets;for(const auto &key:m_settings.allKeys()){
+ QJsonObject preferences,appearance,presets,appearancePresets;for(const auto &key:m_settings.allKeys()){
   if(key.startsWith("preferences/"))preferences[key.mid(12)]=QJsonValue::fromVariant(m_settings.value(key));
   else if(key.startsWith("appearance/"))appearance[key.mid(11)]=QJsonValue::fromVariant(m_settings.value(key));
+  else if(key.startsWith("appearancePresets/custom/"))appearancePresets[key.mid(QStringLiteral("appearancePresets/custom/").size())]=QJsonValue::fromVariant(m_settings.value(key));
   else if(key.startsWith("lyricPresets/custom/"))presets[key.mid(QStringLiteral("lyricPresets/custom/").size())]=QJsonValue::fromVariant(m_settings.value(key));
  }
- QSaveFile file(url.toLocalFile());if(file.open(QIODevice::WriteOnly)){file.write(QJsonDocument(QJsonObject{{"schemaVersion",2},{"preferences",preferences},{"appearance",appearance},{"lyricPresets",presets}}).toJson());file.commit();}
+ QSaveFile file(url.toLocalFile());if(file.open(QIODevice::WriteOnly)){file.write(QJsonDocument(QJsonObject{{"schemaVersion",2},{"preferences",preferences},{"appearance",appearance},{"lyricPresets",presets},{"appearancePresets",appearancePresets}}).toJson());file.commit();}
 }
 void Bridge::importSettings(QUrl url){
  QFile file(url.toLocalFile());if(!file.open(QIODevice::ReadOnly)||file.size()>1024*1024)return;
@@ -226,6 +227,8 @@ void Bridge::importSettings(QUrl url){
  const auto preferences=doc.value("preferences").toObject();for(auto i=preferences.begin();i!=preferences.end();++i)if(i.value().isBool()||i.value().isDouble()||i.value().isString())setSetting(i.key(),i.value().toVariant());
  const auto appearance=doc.value("appearance").toObject();
  if(version==2){applyAppearancePreset(appearance.value("preset").toString("balanced"));for(auto i=appearance.begin();i!=appearance.end();++i){const auto parts=i.key().split('/');if(parts.size()!=2)continue;if(parts[1]=="inherit")setAppearanceInherited(parts[0],i.value().toBool(true));else setAppearance(parts[0],parts[1],i.value().toVariant());}}
+ const auto appearancePresets=doc.value("appearancePresets").toObject();int importedAppearance=0;
+ for(auto it=appearancePresets.begin();it!=appearancePresets.end()&&importedAppearance<50;++it){const auto row=it.value().toObject().toVariantMap();const auto name=row.value("name").toString();if(!validLyricPresetName(name)||builtinAppearancePreset(name)||(this->appearancePresets().size()>=54&&!m_settings.contains(appearancePresetKey(name))))continue;auto style=validatedAppearanceStyle(row);if(style.isEmpty())continue;style["name"]=name;m_settings.setValue(appearancePresetKey(name),style);++importedAppearance;}
  const auto presets=doc.value("lyricPresets").toObject();int imported=0;
  for(auto it=presets.begin();it!=presets.end()&&imported<50;++it){const auto row=it.value().toObject();const auto name=row.value("name").toString();if(!validLyricPresetName(name)||builtinLyricPreset(name))continue;QVariantMap values;const auto input=row.value("values").toObject();for(auto value=input.begin();value!=input.end();++value){QVariant normalized;if(SettingsSchema::descriptor(value.key()).value("lyricStyle").toBool()&&SettingsSchema::normalize(value.key(),value.value().toVariant(),&normalized))values[value.key()]=normalized;}if(!values.isEmpty()){m_settings.setValue(lyricPresetKey(name),QVariantMap{{"name",name},{"values",values}});++imported;}}
  emit settingsChanged();

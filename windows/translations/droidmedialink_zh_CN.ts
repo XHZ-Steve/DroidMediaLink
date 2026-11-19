@@ -312,6 +312,7 @@
             <source>Lyrics cache cleared</source>
             <translation>歌词缓存已清除</translation>
         </message>
+    <message><source>Preset limit reached</source><translation>预设数量已达上限</translation></message>
 </context>
 <context>
     <name>CoverArtwork</name>
@@ -2155,6 +2156,7 @@
             <source>Original–translation offset</source>
             <translation>原文与译文间距偏移</translation>
         </message>
+    <message><source>Follow word timing when scrolling</source><translation>跟随逐字时间滚动</translation></message>
 </context>
 <context>
     <name>SettingsPage</name>

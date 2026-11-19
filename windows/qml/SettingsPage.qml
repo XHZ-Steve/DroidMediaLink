@@ -26,6 +26,8 @@ Item {
     property var collapsedSections: ({})
     property var appearanceScopes: ({})
     property var collapsedSubgroups: ({})
+    property bool appearancePresetDialog:false
+    property string selectedAppearancePresetName:""
     property string selectedPresetName: ""
     property string presetNameAction: "save"
     property string presetRenameFrom: ""
@@ -89,6 +91,10 @@ Item {
         return sources.sort(function(a,b){return order.indexOf(a.id)-order.indexOf(b.id)})
     }
     readonly property var lyricPresetRows: {settingsRevision;return controller&&controller.lyricPresets?controller.lyricPresets.map(function(row){return {label:row.label||row.name,value:row.name,builtIn:row.builtIn}}):[]}
+    readonly property var appearancePresetRows:{settingsRevision;return controller&&controller.appearancePresets?controller.appearancePresets.map(function(row){return {label:row.label||row.name,value:row.name,builtIn:row.builtIn}}):[]}
+    readonly property string effectiveAppearancePresetName:appearancePresetRows.some(function(row){return row.value===selectedAppearancePresetName})?selectedAppearancePresetName:appearancePresetRows.length?appearancePresetRows[0].value:""
+    readonly property var managedPresetRows:appearancePresetDialog?appearancePresetRows:lyricPresetRows
+    readonly property string managedPresetName:appearancePresetDialog?effectiveAppearancePresetName:effectivePresetName
     readonly property string effectivePresetName: lyricPresetRows.some(function(row){return row.value===selectedPresetName})?selectedPresetName:lyricPresetRows.length?lyricPresetRows[0].value:""
     readonly property bool selectedPresetBuiltIn: {for(let i=0;i<lyricPresetRows.length;i++)if(lyricPresetRows[i].value===effectivePresetName)return lyricPresetRows[i].builtIn;return true}
     readonly property var searchResults: {
@@ -200,8 +206,8 @@ Item {
     }
     function providerStatus(status){const labels={unknown:"",testing:qsTr("Testing"),available:qsTr("Available"),empty:qsTr("No lyrics"),error:qsTr("Unavailable"),"rate-limited":qsTr("Rate limited"),searching:qsTr("Searching"),downloading:qsTr("Downloading"),decoding:qsTr("Decoding"),timeout:qsTr("Timed out"),small:qsTr("Not larger than phone artwork"),incomplete:qsTr("Waiting for song metadata")};return labels[status]===undefined?status:labels[status]}
     function providerName(id){for(let i=0;i<providerRows.length;i++)if(providerRows[i].id===id)return providerRows[i].name;return id==="local"?qsTr("Local lyrics"):id==="phone"?qsTr("Phone lyrics"):id||qsTr("None")}
-    function validPresetName(input,oldName){const name=String(input).trim();return name.length>0&&name.length<=64&&!/[\x00-\x1f\\/]/.test(name)&&!lyricPresetRows.some(function(row){return row.value===name&&row.value!==oldName})}
-    function editPresetName(action){presetNameAction=action;presetRenameFrom=action==="rename"?effectivePresetName:"";presetNameDialog.open()}
+    function validPresetName(input,oldName){const name=String(input).trim();return name.length>0&&name.length<=64&&!/[\x00-\x1f\\/]/.test(name)&&!managedPresetRows.some(function(row){return row.value===name&&row.value!==oldName})}
+    function editPresetName(action,appearance){appearancePresetDialog=appearance===true;presetNameAction=action;presetRenameFrom=action==="rename"?managedPresetName:"";presetNameDialog.open()}
     Timer{id:restoreScroll;interval:0;onTriggered:{
         const key=String(page.activeGroup)
         if(key!==page.scrollKey){if(!page.restoringHistory)page.navigationHistory=page.navigationHistory.concat([page.scrollKey]).slice(-40);page.scrollKey=key}
@@ -498,14 +504,20 @@ Item {
         Choice{visible:appearancePanel.scope==="global";Layout.preferredWidth:155;Accessible.name:qsTr("Appearance preset");model:[{label:qsTr("Preset"),value:""},{label:qsTr("Clear"),value:"clear"},{label:qsTr("Balanced"),value:"balanced"},{label:qsTr("Vivid"),value:"vivid"},{label:qsTr("Optical"),value:"optical"}];currentIndex:0;onActivated:if(currentIndex>0){page.controller.applyAppearancePreset(model[currentIndex].value);currentIndex=0}}
     }
     component LyricPresetsPanel: ColumnLayout {
+        id:presetPanel
+        property bool appearance:false
+        readonly property var rows:appearance?page.appearancePresetRows:page.lyricPresetRows
+        readonly property string selectedName:appearance?page.effectiveAppearancePresetName:page.effectivePresetName
+        readonly property bool builtIn:{for(let i=0;i<rows.length;i++)if(rows[i].value===selectedName)return rows[i].builtIn;return true}
+        readonly property string objectPrefix:appearance?"appearancePreset":"lyricPreset"
         spacing:10
         RowLayout {
             Layout.fillWidth:true
-            Choice{objectName:"lyricPresetChoice";Layout.fillWidth:true;Layout.maximumWidth:350;model:page.lyricPresetRows;Accessible.name:qsTr("Lyric style preset");currentIndex:{for(let i=0;i<page.lyricPresetRows.length;i++)if(page.lyricPresetRows[i].value===page.effectivePresetName)return i;return -1}onActivated:if(currentIndex>=0){page.selectedPresetName=page.lyricPresetRows[currentIndex].value;page.controller.applyLyricPreset(page.selectedPresetName)}}
+            Choice{objectName:presetPanel.objectPrefix+"Choice";Layout.fillWidth:true;Layout.maximumWidth:350;model:presetPanel.rows;Accessible.name:presetPanel.appearance?qsTr("Appearance preset"):qsTr("Lyric style preset");currentIndex:{for(let i=0;i<presetPanel.rows.length;i++)if(presetPanel.rows[i].value===presetPanel.selectedName)return i;return -1}onActivated:if(currentIndex>=0){const name=presetPanel.rows[currentIndex].value;if(presetPanel.appearance){page.selectedAppearancePresetName=name;page.controller.applyAppearancePreset(name)}else{page.selectedPresetName=name;page.controller.applyLyricPreset(name)}}}
             Item{Layout.fillWidth:true}
-            FlatButton{objectName:"lyricPresetSave";text:qsTr("Save as");frosted:true;onClicked:page.editPresetName("save")}
-            FlatButton{objectName:"lyricPresetRename";text:Icons.glyph("pencil");font.family:lucide.name;implicitWidth:36;enabled:!!page.effectivePresetName&&!page.selectedPresetBuiltIn;Accessible.name:qsTr("Rename preset");ToolTip.visible:hovered;ToolTip.text:qsTr("Rename preset");onClicked:page.editPresetName("rename")}
-            FlatButton{objectName:"lyricPresetDelete";text:Icons.glyph("trash-2");font.family:lucide.name;implicitWidth:36;enabled:!!page.effectivePresetName&&!page.selectedPresetBuiltIn;Accessible.name:qsTr("Delete preset");ToolTip.visible:hovered;ToolTip.text:qsTr("Delete preset");onClicked:presetDeleteDialog.open()}
+            FlatButton{objectName:presetPanel.objectPrefix+"Save";text:qsTr("Save as");frosted:true;onClicked:page.editPresetName("save",presetPanel.appearance)}
+            FlatButton{objectName:presetPanel.objectPrefix+"Rename";text:Icons.glyph("pencil");font.family:lucide.name;implicitWidth:36;enabled:!!presetPanel.selectedName&&!presetPanel.builtIn;Accessible.name:qsTr("Rename preset");ToolTip.visible:hovered;ToolTip.text:qsTr("Rename preset");onClicked:page.editPresetName("rename",presetPanel.appearance)}
+            FlatButton{objectName:presetPanel.objectPrefix+"Delete";text:Icons.glyph("trash-2");font.family:lucide.name;implicitWidth:36;enabled:!!presetPanel.selectedName&&!presetPanel.builtIn;Accessible.name:qsTr("Delete preset");ToolTip.visible:hovered;ToolTip.text:qsTr("Delete preset");onClicked:{page.appearancePresetDialog=presetPanel.appearance;presetDeleteDialog.open()}}
         }
         Flow {
             Layout.fillWidth:true;spacing:6
@@ -513,7 +525,7 @@ Item {
             FlatButton{text:qsTr("Export settings");onClicked:exportFile.open()}
         }
         RowLayout {
-            Layout.fillWidth:true
+            visible:!presetPanel.appearance;Layout.fillWidth:true
             Choice{id:lyricResetScope;model:[{label:qsTr("Main lyrics"),value:"main"},{label:qsTr("Desktop lyrics"),value:"desktop"},{label:qsTr("All lyric styles"),value:"all"}];Accessible.name:qsTr("Lyric reset scope");Layout.fillWidth:true;Layout.maximumWidth:260}
             Item{Layout.fillWidth:true}
             FlatButton{text:qsTr("Restore lyric defaults");onClicked:{page.pendingReset={kind:"lyrics",scope:lyricResetScope.model[lyricResetScope.currentIndex].value};resetDialog.open()}}
@@ -584,7 +596,7 @@ Item {
                 Loader{Layout.fillWidth:true;active:sectionBlock.groupIndex===1&&(sectionBlock.sectionIndex===0||sectionBlock.sectionIndex===1);sourceComponent:DevicePanel{sectionIndex:sectionBlock.sectionIndex}}
                 Loader{Layout.fillWidth:true;active:sectionBlock.groupIndex===3&&sectionBlock.sectionIndex===0;sourceComponent:ProviderPanel{}}
                 Loader{Layout.fillWidth:true;active:sectionBlock.groupIndex===2&&sectionBlock.sectionIndex===0;sourceComponent:ProviderPanel{covers:true}}
-                Loader{Layout.fillWidth:true;active:sectionBlock.groupIndex===3&&sectionBlock.sectionIndex===6;sourceComponent:LyricPresetsPanel{}}
+                Loader{Layout.fillWidth:true;active:(sectionBlock.groupIndex===3&&sectionBlock.sectionIndex===6)||(sectionBlock.groupIndex===4&&sectionBlock.sectionIndex===0);sourceComponent:LyricPresetsPanel{appearance:sectionBlock.groupIndex===4}}
                 Loader{Layout.fillWidth:true;active:sectionBlock.appearance;sourceComponent:AppearancePanel{sectionIndex:sectionBlock.sectionIndex}}
                 Repeater {model:page.rowsFor(sectionBlock.groupIndex,sectionBlock.sectionIndex).filter(function(row){return !row.subgroup});ParameterRow{required property var modelData;descriptor:modelData;sectionIndex:sectionBlock.sectionIndex}}
                 Repeater {model:page.subgroupsFor(sectionBlock.groupIndex,sectionBlock.sectionIndex);LyricSubgroup{required property var modelData;groupIndex:sectionBlock.groupIndex;sectionIndex:sectionBlock.sectionIndex;subgroupData:modelData}}
@@ -702,19 +714,19 @@ Item {
             FlatButton{text:qsTr("Cancel");onClicked:presetNameDialog.reject()}
             FlatButton{objectName:"presetNameSave";text:qsTr("Save");frosted:true;enabled:page.validPresetName(presetNameField.text,page.presetRenameFrom);onClicked:presetNameDialog.accept()}
         }
-        onAccepted:{const name=presetNameField.text.trim();if(!page.validPresetName(name,page.presetRenameFrom))return;if(page.presetNameAction==="rename")page.controller.renameLyricPreset(page.presetRenameFrom,name);else page.controller.saveLyricPreset(name);page.selectedPresetName=name}
+        onAccepted:{const name=presetNameField.text.trim();if(!page.validPresetName(name,page.presetRenameFrom))return;if(page.appearancePresetDialog){if(page.presetNameAction==="rename")page.controller.renameAppearancePreset(page.presetRenameFrom,name);else if(!page.controller.saveAppearancePreset(name))return;page.selectedAppearancePresetName=name}else{if(page.presetNameAction==="rename")page.controller.renameLyricPreset(page.presetRenameFrom,name);else page.controller.saveLyricPreset(name);page.selectedPresetName=name}}
     }
     ConfirmDialog {
         id:presetDeleteDialog;objectName:"presetDeleteDialog";title:qsTr("Delete preset?");modal:true;anchors.centerIn:Overlay.overlay;width:Math.min(380,page.width-24);padding:20
         property string presetName:""
-        onOpened:presetName=page.effectivePresetName
+        onOpened:presetName=page.managedPresetName
         contentItem:Label{text:qsTr("The saved style “%1” will be removed.").arg(presetDeleteDialog.presetName);color:page.textColor;wrapMode:Text.Wrap}
         footer:RowLayout {spacing:8
             Item{Layout.fillWidth:true}
             FlatButton{text:qsTr("Cancel");onClicked:presetDeleteDialog.reject()}
             FlatButton{objectName:"presetDeleteConfirm";text:qsTr("Delete");onClicked:presetDeleteDialog.accept()}
         }
-        onAccepted:{page.controller.deleteLyricPreset(presetName);page.selectedPresetName=""}
+        onAccepted:{if(page.appearancePresetDialog){page.controller.deleteAppearancePreset(presetName);page.selectedAppearancePresetName=""}else{page.controller.deleteLyricPreset(presetName);page.selectedPresetName=""}}
     }
     ConfirmDialog {
         id:cacheDialog;objectName:"clearLyricsConfirm";title:qsTr("Clear lyrics cache?");modal:true;anchors.centerIn:Overlay.overlay;width:Math.min(420,page.width-24)

@@ -50,7 +50,7 @@ Item {
  readonly property real reserveScale:Math.max(1,activeScale,option("inactiveScale",1))
  readonly property int fontWeight:option("fontWeight",desktop?450:500)
  readonly property int activeWeight:option("activeWeight",desktop?500:600)
- property real translationGap:Math.max(0,desktop?6+option("groupSpacing",10):option("translationSpacing",6))
+ property real translationGap:desktop?6+option("groupSpacing",10):option("translationSpacing",6)
  Behavior on translationGap{enabled:view.motion&&view.active;NumberAnimation{duration:180;easing.type:Easing.InOutCubic}}
  Behavior on fontSize{enabled:view.motion&&view.active;NumberAnimation{duration:180;easing.type:Easing.InOutCubic}}
  readonly property real inkPadding:Math.ceil(Math.max(5,outlineWidth+2,shadow?option("shadowBlur",6)+Math.abs(option("shadowOffset",2)):0,option("glow",false)||option("wordGlow",false)?option("glowRadius",8):0))
@@ -71,6 +71,32 @@ Item {
  function plainChunks(row){const text=row.text||"";const parts=text.match(/[\u2e80-\u9fff\u3040-\u30ff]|[^\s\u2e80-\u9fff\u3040-\u30ff]+\s*|\s+/g)||[];return parts.map(function(part){return {text:part,time:row.time||0,end:row.end||0}})}
  function primaryTokens(){const row=timeline.itemAtIndex(line);return row?row.originalTokens():[]}
  function syncClock(){if(controller&&typeof controller.setLyricsVisible==="function")controller.setLyricsVisible(clockSurface,active&&clockEnabled)}
+ // Fit one timing curve per line, never retarget it at word boundaries.
+ function scrollControls(row){
+  const words=row.words||[];if(words.length<2)return Qt.point(1/3,2/3)
+  const start=words[0].time,end=words[words.length-1].end,total=words.reduce(function(sum,w){return sum+Array.from(w.text||"").length},0)
+  if(!(end>start)||!total)return Qt.point(1/3,2/3)
+  let aa=.08,ab=0,bb=.08,ay=.08/3,by=.08*2/3,advance=0
+  for(let i=0;i<words.length;i++){
+   const word=words[i],length=Array.from(word.text||"").length;if(!length)continue
+   const distance=(advance+length*.5)/total;advance+=length
+   let lo=0,hi=1
+   for(let n=0;n<16;n++){const u=(lo+hi)/2;if(u*u*(3-2*u)<distance)lo=u;else hi=u}
+   const u=(lo+hi)/2,a=3*(1-u)*(1-u)*u,b=3*(1-u)*u*u,t=Math.max(0,Math.min(1,((word.time+word.end)/2-start)/(end-start)))-u*u*u
+   aa+=a*a;ab+=a*b;bb+=b*b;ay+=a*t;by+=b*t
+  }
+  const determinant=aa*bb-ab*ab;if(determinant<=0)return Qt.point(1/3,2/3)
+  let x1=Math.max(.08,Math.min(.8,(ay*bb-by*ab)/determinant)),x2=Math.max(.2,Math.min(.92,(by*aa-ay*ab)/determinant))
+  if(x1>x2){const mid=(x1+x2)/2;x1=mid;x2=mid}
+  return Qt.point(x1,x2)
+ }
+ function scrollCurve(fraction,controls){
+  if(fraction<=0)return 0;if(fraction>=1)return 1
+  if(Math.abs(controls.x-1/3)<.000001&&Math.abs(controls.y-2/3)<.000001)return fraction*fraction*(3-2*fraction)
+  let lo=0,hi=1
+  for(let i=0;i<22;i++){const u=(lo+hi)/2,x=3*(1-u)*(1-u)*u*controls.x+3*(1-u)*u*u*controls.y+u*u*u;if(x<fraction)lo=u;else hi=u}
+  const u=(lo+hi)/2;return u*u*(3-2*u)
+ }
  function recover(){timeline.userScrolling=false;timeline.cancelFlick();timeline.follow()}
  onClockEnabledChanged:syncClock()
  onActiveChanged:{if(active)sampleSettings();syncClock();if(!active){scrollMotion.stop();timeline.positioned=false}else Qt.callLater(timeline.follow)}
@@ -138,7 +164,7 @@ Item {
    wrappedLineEdges=edges
   }
   function primaryGeometry(){return primary.mapToItem(view,Qt.rect(0,0,primary.width,primary.height))}
-  readonly property real primaryCenterOffset:view.desktop?(translatedLine.visible?translatedLine.y+translatedLine.height:originalSlot.height)/2:primary.height/2
+  readonly property real primaryCenterOffset:view.desktop?(translatedLine.visible?(Math.min(0,originalSlot.height+view.translationGap)+Math.max(originalSlot.height,originalSlot.height+view.translationGap+translationLabel.implicitHeight))/2:originalSlot.height/2):primary.height/2
   // Delegate measurement can finish after the initial follow request. Re-anchor
   // only on layout changes, never on each media-clock tick.
   onYChanged:if(index===view.line)Qt.callLater(timeline.follow)
@@ -157,8 +183,10 @@ Item {
   readonly property real scrollStart:row.words&&row.words.length?row.words[0].time:row.time||0
   readonly property real scrollEnd:row.words&&row.words.length?row.words[row.words.length-1].end:row.end||scrollStart
   readonly property real scrollFraction:scrollEnd>scrollStart?Math.max(0,Math.min(1,(view.timelinePosition-scrollStart)/(scrollEnd-scrollStart))):0
-  readonly property real scrollDistance:Math.max(0,(primary.width-view.inkPadding*2)*primary.scale-rowItem.scrollViewportWidth)
-  readonly property real scrollOffset:scrolling?scrollDistance*(scrollFraction*scrollFraction*(3-2*scrollFraction)):0
+  TextMetrics{id:tailMeasure;font:rowItem.measureFace;text:Array.from(rowItem.row.text||" ").slice(-1).join("")||" "}
+  readonly property real scrollDistance:Math.max(0,(primary.width-view.inkPadding*2)*primary.scale-rowItem.scrollViewportWidth)+Math.max(1,tailMeasure.advanceWidth)*primary.scale
+  readonly property point timingControls:view.option("scrollWordTiming",false)&&wordTimed?view.scrollControls(row):Qt.point(1/3,2/3)
+  readonly property real scrollOffset:scrolling?scrollDistance*view.scrollCurve(scrollFraction,timingControls):0
   readonly property real sourceWidth:view.longLine==="elide"?Math.min(layoutWidth,naturalWidth):flowWidth
   readonly property color baseColor:selected?view.colorOption("unsungColor",view.inactiveColor):view.untimed?view.textColor:past?view.colorOption("pastColor",view.inactiveColor):view.colorOption("futureColor",view.inactiveColor)
   readonly property real stateOpacity:selected||view.untimed?view.option("activeOpacity",1):view.line<0?.78:Math.min(1,(past?view.option("pastOpacity",view.desktop?.5:.58):view.inactiveOpacity)+view.option("nearbyEmphasis",.12)/Math.max(1,Math.abs(index-view.line)))
@@ -174,7 +202,7 @@ Item {
    x:view.flushAlignment?(rowItem.width-width)*view.alignmentPosition+view.inkPadding*primary.scale*(2*view.alignmentPosition-1):view.alignment==="center"?(rowItem.width-width)/2:view.alignment==="right"?rowItem.width-width:4
    spacing:0
    Item {
-    id:originalSlot
+    id:originalSlot;objectName:"lyricOriginalSlot"
     x:rowItem.scrolling?(rowItem.width-rowItem.scrollViewportWidth)*view.alignmentPosition-body.x:0;width:rowItem.scrolling?rowItem.scrollViewportWidth:parent.width;height:primary.height*view.reserveScale*rowItem.shrink;clip:rowItem.scrolling
     layer.enabled:view.active&&rowItem.scrolling&&rowItem.selected&&GraphicsInfo.api!==GraphicsInfo.Software
     layer.smooth:true
@@ -213,16 +241,20 @@ Item {
      }
     }
    }
-   Text {
+   Item {
     id:translatedLine
     visible:view.showTranslation&&(rowItem.row.translation||"").length>0
-    width:view.flushAlignment?Math.min(implicitWidth,parent.width):parent.width;topPadding:view.translationGap
+    width:parent.width;height:Math.max(.001,translationLabel.implicitHeight+view.translationGap)
+    Text {
+    id:translationLabel;objectName:"lyricTranslationText";y:view.translationGap
+    width:view.flushAlignment?Math.min(implicitWidth,parent.width):parent.width
     x:view.flushAlignment?(rowItem.width-width)*(view.option("translationAlignment","inherit")==="inherit"?view.alignmentPosition:horizontalAlignment===Text.AlignRight?1:horizontalAlignment===Text.AlignHCenter?.5:0)-body.x:horizontalAlignment===Text.AlignLeft&&view.alignment==="left"?view.inkPadding*primary.scale:horizontalAlignment===Text.AlignRight&&view.alignment==="right"?-view.inkPadding*primary.scale:0
     text:rowItem.row.translation||"";textFormat:Text.PlainText;wrapMode:Text.Wrap
     horizontalAlignment:view.align(view.option("translationAlignment","inherit")==="inherit"?view.alignment:view.option("translationAlignment","inherit"))
     color:view.colorOption("translationColor",view.textColor);opacity:view.option("translationOpacity",.78)*(1-view.originalFocus)
     font.family:type.resolvedFamily(text,view.option("translationFont",type.uiFamily));font.pixelSize:Math.round(view.fontSize*view.option("translationSize",.60));font.weight:view.option("translationWeight",400);font.contextFontMerging:true
     lineHeight:view.option("translationLineHeight",1.2);renderType:view.rendering;renderTypeQuality:104
+    }
    }
    Text {
     visible:view.showRomanization&&(rowItem.row.romanization||"").length>0

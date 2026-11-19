@@ -13,6 +13,7 @@ layout(std140, binding = 0) uniform buf {
     vec4 geometry;
     vec4 fluid;
     float phase;
+    float monochromeStrength;
 };
 const vec3 luma=vec3(.2126,.7152,.0722);
 vec3 linearColor(vec3 c) { return pow(max(c,vec3(0)),vec3(2.2)); }
@@ -68,6 +69,12 @@ void main() {
     vec3 darkField=mix(linearColor(darkBase),colors,coverage*.32);
     vec3 lightField=mix(linearColor(vec3(.965,.972,.985)),colors,coverage*.21);
     vec3 result=pow(max(mix(darkField,lightField,geometry.w),vec3(0)),vec3(1./2.2));
+    // Narrow high-chroma covers retain their hue, with a little neutral depth.
+    // Source-gamut detection leaves every richer cover's output unchanged.
+    float monochrome=clamp(monochromeStrength,0.,1.);
+    result=mix(result,vec3(dot(result,luma)),monochrome*.22);
+    result=mix(result,vec3(0.),monochrome*.18*a);
+    result=mix(result,vec3(1.),monochrome*.065*b*(1.-.5*a));
     vec3 neutral=mix(vec3(.025,.032,.046),vec3(.975,.979,.988),geometry.w);
     result=mix(neutral,result,atmosphere.x)*tuning.y;
     // Fixed in device-pixel space, never keyed to time: sub-LSB spatial dither

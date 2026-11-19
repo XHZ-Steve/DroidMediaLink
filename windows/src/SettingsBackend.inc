@@ -26,7 +26,6 @@ void Bridge::setAppearance(QString scope,QString key,QVariant value){
  m_settings.setValue("appearance/"+scope+"/"+key,normalized);emit settingsChanged();
 }
 void Bridge::setAppearanceInherited(QString scope,bool inherited){if(!QStringList{"background","dock","popup","floating","desktop"}.contains(scope))return;m_settings.setValue("appearance/"+scope+"/inherit",inherited);emit settingsChanged();}
-void Bridge::applyAppearancePreset(QString preset){if(!QStringList{"clear","balanced","vivid","optical"}.contains(preset))return;m_settings.remove("appearance/global");m_settings.setValue("appearance/preset",preset);emit settingsChanged();}
 void Bridge::resetAppearance(QString scope){if(!QStringList{"global","background","dock","popup","floating","desktop"}.contains(scope))return;m_settings.remove("appearance/"+scope);if(scope=="global")m_settings.setValue("appearance/preset","balanced");emit settingsChanged();}
 void Bridge::resetSettingsGroup(int group,int section){for(const auto &item:SettingsSchema::descriptors()){auto row=item.toMap();if(row["group"].toInt()!=group||row["section"].toInt()!=section)continue;const auto key=row["key"].toString();if(row["type"]=="action"||row["type"]=="readonly")continue;setSetting(key,row["defaultValue"]);}emit settingsChanged();}
 void Bridge::exportDiagnostics(QUrl url){QSaveFile file(url.toLocalFile());if(!file.open(QIODevice::WriteOnly))return;const QJsonObject data{{"applicationVersion",QCoreApplication::applicationVersion()},{"qtVersion",qVersion()},{"connected",online()},{"player",appName()},{"lyricsLoaded",m_lyrics.size()},{"lyricSource",lyricSource()},{"smtcStatus",nativeStatus()},{"appearancePreset",m_settings.value("appearance/preset","balanced").toString()}};file.write(QJsonDocument(data).toJson());file.commit();}
@@ -103,3 +102,37 @@ void Bridge::resetLyricSettings(QString scope){
 QVariantMap Bridge::lyricStyleConfig(QString prefix)const{QVariantMap result;if(prefix!="lyrics"&&prefix!="desktopLyrics")return result;for(const auto &item:SettingsSchema::descriptors()){const auto row=item.toMap();const auto key=row.value("key").toString();if(row.value("lyricStyle").toBool()&&key.startsWith(prefix+"/"))result[key.mid(prefix.size()+1)]=setting(key,row.value("defaultValue"));}return result;}
 void Bridge::resetSetting(QString key){const auto row=SettingsSchema::descriptor(key);if(row.isEmpty()||row["type"]=="readonly"||row["type"]=="action")return;const auto defaults=factoryDefaults();setSetting(key,defaults.contains("preferences/"+key)?defaults.value("preferences/"+key).toVariant():row["defaultValue"]);}
 void Bridge::resetAppearanceValue(QString scope,QString key){if(!QStringList{"global","background","dock","popup","floating","desktop"}.contains(scope)||!AppearanceConfig::defaultValue(key).isValid())return;const auto full="appearance/"+scope+"/"+key;const auto defaults=factoryDefaults();if(scope=="global"&&defaults.contains(full))m_settings.setValue(full,defaults.value(full).toVariant());else m_settings.remove(full);emit settingsChanged();}
+
+namespace {
+QString appearancePresetKey(const QString &name){return "appearancePresets/custom/"+QString::fromLatin1(name.toUtf8().toBase64(QByteArray::Base64UrlEncoding|QByteArray::OmitTrailingEquals));}
+bool builtinAppearancePreset(const QString &name){return QStringList{"clear","balanced","vivid","optical"}.contains(name);}
+QVariantMap validatedAppearanceStyle(const QVariantMap &input){
+ QVariantMap materials,preferences;const auto source=input.value("materials").toMap();
+ for(auto it=source.cbegin();it!=source.cend();++it){const auto parts=it.key().split('/');if(parts.size()!=2||!QStringList{"global","background","dock","popup","floating","desktop"}.contains(parts[0]))continue;QVariant normalized;if(parts[1]=="inherit"&&parts[0]!="global"&&it.value().metaType()==QMetaType::fromType<bool>())materials[it.key()]=it.value();else if(AppearanceConfig::validate(parts[1],it.value(),&normalized))materials[it.key()]=normalized;}
+ const auto prefs=input.value("preferences").toMap();for(auto it=prefs.cbegin();it!=prefs.cend();++it){const auto row=SettingsSchema::descriptor(it.key());QVariant normalized;if(!row.isEmpty()&&row["group"].toInt()==4&&row["type"]!="action"&&row["type"]!="readonly"&&SettingsSchema::normalize(it.key(),it.value(),&normalized))preferences[it.key()]=normalized;}
+ if(materials.isEmpty())return {};return {{"materials",materials},{"preferences",preferences}};
+}
+}
+QVariantList Bridge::appearancePresets()const{
+ QVariantList rows;for(const auto &name:QStringList{"clear","balanced","vivid","optical"}){const auto label=name=="clear"?"Clear":name=="balanced"?"Balanced":name=="vivid"?"Vivid":"Optical";rows<<QVariantMap{{"name",name},{"label",QCoreApplication::translate("SettingsPage",label)},{"builtIn",true}};}
+ for(const auto &key:m_settings.allKeys())if(key.startsWith("appearancePresets/custom/")){const auto preset=m_settings.value(key).toMap();if(validLyricPresetName(preset["name"].toString()))rows<<QVariantMap{{"name",preset["name"]},{"label",preset["name"]},{"builtIn",false}};}
+ return rows;
+}
+bool Bridge::saveAppearancePreset(QString name){
+ if(!validLyricPresetName(name)||builtinAppearancePreset(name))return false;
+ if(appearancePresets().size()>=54&&!m_settings.contains(appearancePresetKey(name))){emit notification(tr("Preset limit reached"));return false;}
+ QVariantMap materials,preferences;for(const auto &scope:QStringList{"global","background","dock","popup","floating","desktop"}){const auto config=appearanceConfig(scope);for(auto it=config.cbegin();it!=config.cend();++it)materials[scope+"/"+it.key()]=it.value();if(scope!="global")materials[scope+"/inherit"]=appearanceInherited(scope);}
+ for(const auto &entry:SettingsSchema::descriptors()){const auto row=entry.toMap();if(row["group"].toInt()==4&&row["type"]!="action"&&row["type"]!="readonly")preferences[row["key"].toString()]=setting(row["key"].toString(),row["defaultValue"]);}
+ m_settings.setValue(appearancePresetKey(name),QVariantMap{{"name",name},{"materials",materials},{"preferences",preferences}});emit settingsChanged();return true;
+}
+void Bridge::applyAppearancePreset(QString name){
+ if(builtinAppearancePreset(name)){m_settings.remove("appearance/global");m_settings.setValue("appearance/preset",name);emit settingsChanged();return;}
+ const auto style=validatedAppearanceStyle(m_settings.value(appearancePresetKey(name)).toMap());if(style.isEmpty())return;
+ m_settings.remove("appearance");m_settings.setValue("appearance/preset","balanced");const auto materials=style["materials"].toMap(),preferences=style["preferences"].toMap();
+ for(auto it=materials.cbegin();it!=materials.cend();++it)m_settings.setValue("appearance/"+it.key(),it.value());for(auto it=preferences.cbegin();it!=preferences.cend();++it)m_settings.setValue("preferences/"+it.key(),it.value());applyTheme();emit settingsChanged();
+}
+void Bridge::renameAppearancePreset(QString oldName,QString newName){
+ if(!validLyricPresetName(newName)||builtinAppearancePreset(oldName)||builtinAppearancePreset(newName)||oldName==newName||m_settings.contains(appearancePresetKey(newName)))return;
+ auto preset=m_settings.value(appearancePresetKey(oldName)).toMap();if(preset.isEmpty())return;preset["name"]=newName;m_settings.setValue(appearancePresetKey(newName),preset);m_settings.remove(appearancePresetKey(oldName));emit settingsChanged();
+}
+void Bridge::deleteAppearancePreset(QString name){if(builtinAppearancePreset(name))return;m_settings.remove(appearancePresetKey(name));emit settingsChanged();}

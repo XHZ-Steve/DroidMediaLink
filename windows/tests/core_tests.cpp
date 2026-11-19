@@ -38,7 +38,17 @@ int main(int argc,char **argv){QCoreApplication app(argc,argv);QTemporaryDir dir
  QImage opposite(80,80,QImage::Format_RGB32);for(int y=0;y<80;++y)for(int x=0;x<80;++x)opposite.setPixelColor(x,y,QColor(x<40?"#eb284b":"#24cbd5"));auto distinct=CoverPalette::fromImage(opposite);if(distinct.primary.hslSaturationF()<.5||distinct.secondary.hslSaturationF()<.5||hueDistance(distinct.primary,distinct.secondary)<.25)return 14;
  QImage neutral(80,80,QImage::Format_RGB32);for(int y=0;y<80;++y)for(int x=0;x<80;++x)neutral.setPixelColor(x,y,QColor(x<40?"#171717":"#eeeeee"));auto mono=CoverPalette::fromImage(neutral);if(mono.primary.hslSaturationF()>.01||mono.secondary.hslSaturationF()>.01||mono.deep.hslSaturationF()>.01)return 15;
  QImage pale(80,80,QImage::Format_RGB32);pale.fill(QColor("#eed5e5"));auto palePalette=CoverPalette::fromImage(pale);if(palePalette.primary.hslSaturationF()<.15||palePalette.primary.lightnessF()>.65||palePalette.deep.lightnessF()>.17)return 16;
- for(int i=1;i<argc;++i){const QImage cover(QString::fromLocal8Bit(argv[i]));if(cover.isNull())return 17;const auto palette=CoverPalette::fromImage(cover);QElapsedTimer timer;timer.start();for(int n=0;n<100;++n)CoverPalette::fromImage(cover);qInfo()<<"Actual cover palette:"<<palette.primary.name()<<palette.secondary.name()<<palette.deep.name()<<"mean sampling us:"<<timer.nsecsElapsed()/100000.;}
+ // Neutral lighting is gated by the source gamut, never saturation alone.
+ QImage saturated(80,80,QImage::Format_RGB32);saturated.fill(QColor("#ff2400"));auto saturatedPalette=CoverPalette::fromImage(saturated);if(saturatedPalette.monochromeStrength<.99||saturatedPalette.primary.hslSaturationF()<.77)return 80;
+ QImage darkBlue(80,80,QImage::Format_RGB32);darkBlue.fill(QColor("#051a40"));if(CoverPalette::fromImage(darkBlue).monochromeStrength<.99)return 81;
+ if(distinct.monochromeStrength!=0||mono.monochromeStrength!=0||palePalette.monochromeStrength!=0||CoverPalette::fromImage(QImage()).monochromeStrength!=0)return 82;
+ QImage richWarm(80,80,QImage::Format_RGB32);for(int y=0;y<80;++y)for(int x=0;x<80;++x)richWarm.setPixelColor(x,y,QColor::fromHslF(x<27?.04:x<54?.94:.79,.85,.45));if(CoverPalette::fromImage(richWarm).monochromeStrength!=0)return 83;
+ // A small second hue still represents genuine colour variety; neutral
+ // borders do not dilute the measured population of colourful pixels.
+ QImage twoHues(80,80,QImage::Format_RGB32);for(int y=0;y<80;++y)for(int x=0;x<80;++x)twoHues.setPixelColor(x,y,QColor(x<72?"#ff2400":"#2450ff"));if(CoverPalette::fromImage(twoHues).monochromeStrength!=0)return 84;
+ QImage nearRed(80,80,QImage::Format_RGB32);for(int y=0;y<80;++y)for(int x=0;x<80;++x)nearRed.setPixelColor(x,y,QColor::fromHslF(x<40?.99:.01,.9,.45));if(CoverPalette::fromImage(nearRed).monochromeStrength<.99)return 85;
+ QImage sparse(80,80,QImage::Format_RGB32);sparse.fill(Qt::black);for(int y=0;y<4;++y)for(int x=0;x<80;++x)sparse.setPixelColor(x,y,Qt::red);if(CoverPalette::fromImage(sparse).monochromeStrength!=0)return 86;
+ for(int i=1;i<argc;++i){const QImage cover(QString::fromLocal8Bit(argv[i]));if(cover.isNull())return 17;const auto palette=CoverPalette::fromImage(cover);QElapsedTimer timer;timer.start();for(int n=0;n<100;++n)CoverPalette::fromImage(cover);qInfo()<<"Actual cover palette:"<<palette.primary.name()<<palette.secondary.name()<<palette.deep.name()<<"monochrome strength:"<<palette.monochromeStrength<<"mean sampling us:"<<timer.nsecsElapsed()/100000.;}
 
  bridge.setAppearance("global","glassBlur",3.6);bridge.setAppearance("dock","glassBlur",7.2);
  if(bridge.appearanceConfig("dock")["glassBlur"].toDouble()!=3.6)return 18;
@@ -74,4 +84,4 @@ int main(int argc,char **argv){QCoreApplication app(argc,argv);QTemporaryDir dir
  QJsonObject release{{"assets",QJsonArray{installer}}};if(ReleaseUpdate::asset(release).isEmpty())return 92;
  release["prerelease"]=true;if(!ReleaseUpdate::asset(release).isEmpty())return 93;
  if(!UpdateTests::rejectsCorruptDownload(bridge))return 94;
- qInfo()<<"LRC, word timings, TTML, settings, WSS and warm/cool/complementary/monochrome/pale cover palette checks passed";return 0;}
+ qInfo()<<"LRC, word timings, TTML, settings, WSS and warm/cool/complementary/monochrome/pale/source-gamut cover palette checks passed";return 0;}

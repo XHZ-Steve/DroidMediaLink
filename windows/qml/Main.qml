@@ -160,7 +160,7 @@ ApplicationWindow {
         onRejected:backend.cancelUpdate()
     }
     component AmbientScene: AmbientField {
-        primary:backend.ambientPrimary;secondary:backend.ambientSecondary;accent:backend.ambientAccent;deep:backend.ambientDeep;configuration:root.material("background")
+        monochromeStrength:backend.ambientMonochromeStrength;primary:backend.ambientPrimary;secondary:backend.ambientSecondary;accent:backend.ambientAccent;deep:backend.ambientDeep;configuration:root.material("background")
         light:root.light;motion:root.motion;transitionDuration:design.atmosphere;active:Window.window&&Window.window.visible&&Window.window.active&&Window.window.visibility!==Window.Minimized
     }
     component Caption: Label{textFormat:Text.PlainText;color:root.muted;font.pixelSize:design.caption}

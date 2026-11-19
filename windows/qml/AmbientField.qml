@@ -7,6 +7,7 @@ Item {
     property color secondary: "#926b91"
     property color accent: "#b89a67"
     property color deep: "#172237"
+    property real monochromeStrength: 0
     property bool light: false
     property bool motion: true
     property bool active: true
@@ -21,6 +22,8 @@ Item {
     property color secondaryColor: secondary
     property color accentColor: accent
     property color baseColor: deep
+    property real monochromeAmount: monochromeStrength
+    Behavior on monochromeAmount { NumberAnimation {duration:field.motion&&field.active?field.transitionDuration:0;easing.type:Easing.InOutCubic} }
     Behavior on primaryColor { ColorAnimation {duration:field.motion&&field.active?field.transitionDuration:0;easing.type:Easing.InOutCubic} }
     Behavior on secondaryColor { ColorAnimation {duration:field.motion&&field.active?field.transitionDuration:0;easing.type:Easing.InOutCubic} }
     Behavior on accentColor { ColorAnimation {duration:field.motion&&field.active?field.transitionDuration:0;easing.type:Easing.InOutCubic} }
@@ -44,5 +47,6 @@ Item {
         property vector4d geometry: Qt.vector4d(width,height,Screen.devicePixelRatio,field.light?1:0)
         property vector4d fluid: Qt.vector4d(field.setting("backgroundSoftness",.6),field.setting("backgroundFill",true)?1:0,field.setting("backgroundFillStrength",.38),field.setting("backgroundFillReach",1))
         property real phase: field.phase
+        property real monochromeStrength: field.monochromeAmount
     }
 }

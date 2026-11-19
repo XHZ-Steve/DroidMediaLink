@@ -155,6 +155,19 @@ public:
    cache.clearCoverArtCache();cache.clearLyricsCache();if(QFile::exists(cover.fileName())||QFile::exists(lyric.fileName())||!QFile::exists(manual.fileName())||!QFile::exists(root+"/TEST.manual.lrc"))return 110;
    cache.resetSettings();if(cache.cachePath()==root||!QFile::exists(cache.cachePath()+"/TEST.manual.lrc"))return 111;
   }
+  {
+   Bridge style;style.setAppearance("global","glassBlur",3.2);style.setAppearanceInherited("popup",false);style.setAppearance("popup","glassBlur",.7);style.setSetting("light",true);
+   if(!style.saveAppearancePreset("TEST optical"))return 112;
+   style.setAppearance("global","glassBlur",5.);style.setAppearance("popup","glassBlur",5.);style.setSetting("light",false);style.applyAppearancePreset("TEST optical");
+   if(style.appearanceConfig("global")["glassBlur"].toDouble()!=3.2||style.appearanceConfig("popup")["glassBlur"].toDouble()!=.7||style.appearanceInherited("popup")||!style.setting("light",false).toBool())return 113;
+   style.renameAppearancePreset("TEST optical","TEST renamed");auto has=[&](QString name){for(const auto &entry:style.appearancePresets())if(entry.toMap()["name"]==name)return true;return false;};if(has("TEST optical")||!has("TEST renamed"))return 114;
+   const auto path=QUrl::fromLocalFile(files.path()+"/style.json");style.exportSettings(path);style.deleteAppearancePreset("TEST renamed");if(has("TEST renamed"))return 115;style.importSettings(path);if(!has("TEST renamed"))return 116;
+   style.applyAppearancePreset("TEST renamed");if(style.appearanceConfig("popup")["glassBlur"].toDouble()!=.7)return 117;
+   if(style.saveAppearancePreset("balanced")||style.saveAppearancePreset(QString()))return 118;
+   for(int i=0;i<49;i++)if(!style.saveAppearancePreset("TEST limit "+QString::number(i)))return 119;
+   if(style.saveAppearancePreset("TEST overflow")||style.appearancePresets().size()!=54)return 120;
+   style.importSettings(path);if(style.appearancePresets().size()!=54)return 121;
+  }
   qInfo()<<"PASS: deferred cover metadata, late phone dimensions, and independent non-destructive cover diagnostics";
   return 0;
  }

@@ -5,6 +5,7 @@
 #include "../tests/SettingsPerformanceAudit.h"
 #include "../tests/UiBindingSmoke.h"
 #include "../tests/NativeChromeSmoke.h"
+#include "../tests/DesktopTransparencySmoke.h"
 #include <QApplication>
 #include <QMessageBox>
 #include <QQmlApplicationEngine>
@@ -109,6 +110,8 @@ QObject::connect(&app,&QCoreApplication::aboutToQuit,&backend,[&]{settings.setVa
  if(arguments.contains("--discover"))backend.discover();
  int connectIndex=arguments.indexOf("--connect");if(connectIndex>=0&&connectIndex+1<arguments.size())backend.connectDevice(arguments[connectIndex+1]);
  const int dialogIndex=arguments.indexOf("--dialog");if(dialogIndex>=0&&dialogIndex+1<arguments.size()){const auto name=arguments[dialogIndex+1];QTimer::singleShot(600,&app,[&,name]{if(auto dialog=window->findChild<QObject*>(name))QMetaObject::invokeMethod(dialog,"open");if(name=="discovery")backend.discover();});}
+ const int transparencyIndex=arguments.indexOf("--desktop-transparency-smoke");
+ if(profileIndex>=0&&transparencyIndex>=0&&transparencyIndex+1<arguments.size())if(auto desktop=window->findChild<QQuickWindow*>("desktop"))QTimer::singleShot(500,&app,[desktop,path=arguments[transparencyIndex+1],&app]{startDesktopTransparencySmoke(desktop,path,app);});
  const int nativeFrameIndex=arguments.indexOf("--native-frame-smoke");
  if(profileIndex>=0&&nativeFrameIndex>=0&&nativeFrameIndex+1<arguments.size())startNativeChromeSmoke(captureWindow,arguments[nativeFrameIndex+1],app);
  const int auditIndex=arguments.indexOf("--resize-audit");if(profileIndex>=0&&auditIndex>=0&&auditIndex+1<arguments.size())startRenderAudit(window,arguments[auditIndex+1],app);
