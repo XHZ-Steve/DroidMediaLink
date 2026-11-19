@@ -15,6 +15,7 @@
 #include <QUuid>
 #include <QBuffer>
 #include <QImage>
+#include <cstdio>
 
 class LoopbackProviderNetwork:public QNetworkAccessManager {
 public:quint16 port=0;
@@ -182,4 +183,15 @@ public:
   return 0;
  }
 };
-int main(int argc,char **argv){QCoreApplication app(argc,argv);QTemporaryDir config;app.setOrganizationName("DmlTests");app.setApplicationName("lyrics-engine-"+QString::number(QCoreApplication::applicationPid()));QSettings::setDefaultFormat(QSettings::IniFormat);QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,config.path());return LyricsEngineTests::run();}
+int main(int argc,char **argv){
+ QCoreApplication app(argc,argv);
+ QTemporaryDir config;
+ app.setOrganizationName("DmlTests");
+ app.setApplicationName("lyrics-engine-"+QString::number(QCoreApplication::applicationPid()));
+ QSettings::setDefaultFormat(QSettings::IniFormat);
+ QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,config.path());
+ qputenv("QT_FORCE_STDERR_LOGGING","1");
+ const int result=LyricsEngineTests::run();
+ if(result)std::fprintf(stderr,"lyrics_engine_tests: assertion %d failed\n",result);
+ return result;
+}
