@@ -27,7 +27,6 @@ bool validCoverId(QString id){return validId(id)||QRegularExpression("^(netease:
 QString coverSource(QString id){return id.contains(':')?id.section(':',0,0):QStringLiteral("musicbrainz");}
 QString names(QJsonArray entries){QStringList names;for(auto v:entries){auto n=v.toObject().value("name").toString();if(!n.isEmpty())names<<n;}return names.join('/');}
 QStringList artistSet(QString text){QStringList out;for(auto name:text.split(QRegularExpression("[/,;、&]|\\s+(?:feat\\.?|ft\\.?|featuring|with)\\s+",QRegularExpression::CaseInsensitiveOption),Qt::SkipEmptyParts)){auto n=normalized(name);if(!n.isEmpty()&&!out.contains(n))out<<n;}out.sort();return out;}
-bool sameTrack(const CoverArtTrack &a,const CoverArtTrack &b){return !normalized(a.title).isEmpty()&&normalized(a.title)==normalized(b.title)&&variants(a.title)==variants(b.title)&&!artistSet(a.artist).isEmpty()&&artistSet(a.artist)==artistSet(b.artist)&&a.duration>0&&b.duration>0&&qAbs(a.duration-b.duration)<=qBound<qint64>(2500LL,a.duration/100,5000LL)&&(a.album.isEmpty()||normalized(a.album)==normalized(b.album));}
 QUrl queryUrl(QString address,QList<QPair<QString,QString>> params){QUrl url(address);QUrlQuery q;for(auto p:params)q.addQueryItem(p.first,p.second);url.setQuery(q);return url;}
 bool allowed(QUrl url){auto h=url.host().toLower();return url.scheme()=="https"&&(h=="musicbrainz.org"||h=="coverartarchive.org"||h=="archive.org"||h.endsWith(".archive.org"))&&url.userInfo().isEmpty()&&(url.port()==-1||url.port()==443);}
 }
@@ -135,15 +134,37 @@ void CatalogCoverArtProvider::get(QUrl url,bool json,std::function<void(QByteArr
  connect(r,&QNetworkReply::finished,this,[this,r,token,limit,done]{const auto code=r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();auto bytes=r->isOpen()?r->read(limit+1):QByteArray{};const bool ok=r->error()==QNetworkReply::NoError&&code==200&&bytes.size()<=limit;r->deleteLater();if(reply==r)reply=nullptr;if(token!=generation)return;if(code==429||code==503){bool parsed=false;auto seconds=r->rawHeader("Retry-After").toLongLong(&parsed);nextRequest=QDateTime::currentMSecsSinceEpoch()+qBound<qint64>(60LL,parsed?seconds:60LL,86400LL)*1000;}if(!ok){failure=(code==429||code==503)?"rate-limited":r->error()==QNetworkReply::TimeoutError?"timeout":"error";lastError=r->errorString();}done(ok?bytes:QByteArray{});});
 }
 QJsonObject CatalogCoverArtProvider::selectCandidate(QString source,const CoverArtTrack &track,const QJsonArray &rows){
- QMap<QString,QJsonObject> albums;
- for(auto value:rows){auto row=value.toObject();const bool netease=source=="netease";auto album=row.value("album").toObject();CoverArtTrack candidate{row.value(netease?"name":"songname").toString(),names(row.value(netease?"artists":"singer").toArray()),netease?album.value("name").toString():row.value("albumname").toString(),row.value(netease?"duration":"interval").toInteger()*(netease?1:1000)};
-  if(!sameTrack(track,candidate)||candidate.album.isEmpty())continue;
+ const bool netease=source=="netease";
+ const auto title=normalized(LyricProviders::baseTitle(track.title)), credits=normalized(track.artist);
+ const auto expectedArtists=artistSet(track.artist);
+ const auto version=variants(track.title), albumName=normalized(track.album);
+ if(title.isEmpty()||expectedArtists.isEmpty())return {};
+ QMap<QString,QPair<int,QJsonObject>> albums;
+ for(auto value:rows){
+  const auto row=value.toObject(),album=row.value("album").toObject();
+  const auto name=row.value(netease?"name":"songname").toString();
+  const auto performers=names(row.value(netease?"artists":"singer").toArray());
+  if(title!=normalized(LyricProviders::baseTitle(name))||(credits!=normalized(performers)&&expectedArtists!=artistSet(performers)))continue;
+  const auto candidateVersion=variants(name);
+  if(!version.isEmpty()&&!candidateVersion.isEmpty()&&version!=candidateVersion)continue;
   auto id=netease?QString::number(album.value("id").toInteger()):row.value("albummid").toString();if(!validCoverId(source+":"+id))continue;
-  if(netease&&row.value("id").toInteger()<=0)continue;albums[id]=row;
- }return albums.size()==1?albums.first():QJsonObject{};
+  if(netease&&row.value("id").toInteger()<=0)continue;
+  const auto candidateAlbum=normalized(netease?album.value("name").toString():row.value("albumname").toString());
+  const auto duration=row.value(netease?"duration":"interval").toInteger()*(netease?1:1000);
+  const bool durationMatches=track.duration>0&&duration>0&&qAbs(track.duration-duration)<=qBound<qint64>(2500LL,track.duration/100,5000LL);
+  const int score=(version==candidateVersion?8:0)+(!albumName.isEmpty()&&albumName==candidateAlbum?4:0)+(durationMatches?2:0)+(normalized(track.title)==normalized(name)?1:0);
+  if(!albums.contains(id)||albums[id].first<score)albums[id]={score,row};
+ }
+ int high=-1;
+ QJsonObject best;
+ for(const auto &[score,row]:albums){
+  if(score>high){high=score;best=row;}
+  else if(score==high)best={};
+ }
+ return best;
 }
 void CatalogCoverArtProvider::request(const CoverArtTrack &track,int resolution,Done done){
- cancel();failure="empty";lastError.clear();if(track.title.isEmpty()||track.artist.isEmpty()||track.duration<=0||track.title.size()>512||track.artist.size()>512||track.album.size()>512){failure="incomplete";done({},{},false);return;}const auto token=generation;const bool refresh=bypassCache;
+ cancel();failure="empty";lastError.clear();if(track.title.isEmpty()||track.artist.isEmpty()||track.title.size()>512||track.artist.size()>512||track.album.size()>512){failure="incomplete";done({},{},false);return;}const auto token=generation;const bool refresh=bypassCache;
  auto start=[this,track,resolution,done,token,refresh]{if(token!=generation)return;nextRequest=QDateTime::currentMSecsSinceEpoch()+1100;const auto term=(LyricProviders::baseTitle(track.title)+" "+track.artist.section('/',0,0)).left(240);
   auto url=source=="netease"?queryUrl("https://music.163.com/api/search/get/web",{{"s",term},{"type","1"},{"offset","0"},{"limit","25"}}):queryUrl("https://c.y.qq.com/soso/fcgi-bin/client_search_cp",{{"w",term},{"p","1"},{"n","25"},{"cr","1"},{"format","json"},{"inCharset","utf8"},{"outCharset","utf-8"}});
   get(url,true,[this,track,resolution,done,refresh](QByteArray bytes){auto object=QJsonDocument::fromJson(bytes).object();const auto rows=source=="netease"?object.value("result").toObject().value("songs").toArray():object.value("data").toObject().value("song").toObject().value("list").toArray();auto row=selectCandidate(source,track,rows);if(row.isEmpty()){done({},{},false);return;}

@@ -214,9 +214,9 @@ Item {
    spacing:0
    Item {
     id:originalSlot;objectName:"lyricOriginalSlot"
-    readonly property real overhang:rowItem.scrolling&&view.edgeLayer?view.inkOverhang:0
+    readonly property real overhang:rowItem.scrolling&&rowItem.selected&&rowItem.scrollOffset<=0&&view.edgeLayer?view.inkOverhang:0
     x:rowItem.scrolling?(rowItem.width-rowItem.scrollViewportWidth)*view.alignmentPosition-body.x-overhang:0
-    width:rowItem.scrolling?rowItem.scrollViewportWidth+2*overhang:parent.width
+    width:rowItem.scrolling?rowItem.scrollViewportWidth+overhang:parent.width
     height:primary.height*view.reserveScale*rowItem.shrink;clip:rowItem.scrolling
     layer.enabled:view.active&&rowItem.scrolling&&rowItem.selected&&GraphicsInfo.api!==GraphicsInfo.Software
     layer.smooth:true
@@ -224,7 +224,7 @@ Item {
     layer.effect:ShaderEffect{
      property var source
      property vector4d fading:Qt.vector4d(0,0,0,1)
-     property vector4d focusWindow:Qt.vector4d(rowItem.scrollOffset>.5?Math.min(.45,(originalSlot.overhang+18)/Math.max(1,originalSlot.width)):0,rowItem.scrollDistance-rowItem.scrollOffset>.5?Math.min(.45,(originalSlot.overhang+18)/Math.max(1,originalSlot.width)):0,.001,0)
+     property vector4d focusWindow:Qt.vector4d(rowItem.scrollOffset>0?Math.min(.45,18/Math.max(1,originalSlot.width)):0,rowItem.scrollDistance-rowItem.scrollOffset>.5?Math.min(.45,18/Math.max(1,originalSlot.width)):0,.001,0)
      fragmentShader:"qrc:/qt/qml/DroidMediaLink/shaders/lyricfocus.frag.qsb"
     }
     LyricInk {

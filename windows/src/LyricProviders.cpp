@@ -129,6 +129,10 @@ void LyricProviders::fetch(LyricCandidate candidate,FetchDone done){
  if(provider=="qq")url=queryUrl("https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg",{{"songmid",candidate.id},{"g_tk","5381"},{"format","json"},{"inCharset","utf8"},{"outCharset","utf-8"}});
  get(provider,url,[this,candidate,done](QJsonObject row,QJsonArray,QString error){
   if(!error.isEmpty()){done({},error);return;}QString text,translation,romanization,format="lrc";
+  if((candidate.provider=="lrclib"&&row.value("instrumental").toBool())||
+     (candidate.provider=="netease"&&row.value("nolyric").toBool())){
+   setStatus(candidate.provider,"available");done({LyricTimeline::instrumentalRows(),candidate.provider,candidate.id,"instrumental",candidate.score},{});return;
+  }
   if(candidate.provider=="lrclib"){text=row.value("syncedLyrics").toString();if(text.isEmpty())text=row.value("plainLyrics").toString();}
   if(candidate.provider=="netease"){text=row.value("yrc").toObject().value("lyric").toString();if(!text.isEmpty())format="yrc";else text=row.value("lrc").toObject().value("lyric").toString();translation=row.value("ytlrc").toObject().value("lyric").toString();if(translation.isEmpty())translation=row.value("tlyric").toObject().value("lyric").toString();romanization=row.value("romalrc").toObject().value("lyric").toString();}
   if(candidate.provider=="qq"){text=decodeHtml(QString::fromUtf8(QByteArray::fromBase64(row.value("lyric").toString().toUtf8())));translation=decodeHtml(QString::fromUtf8(QByteArray::fromBase64(row.value("trans").toString().toUtf8())));}

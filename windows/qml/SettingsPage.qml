@@ -3,6 +3,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import QtQuick.Effects
 import "Icons.js" as Icons
 
 // Controller contract: settingsCatalog supplies flat, localized descriptors;
@@ -184,6 +185,16 @@ Item {
     function normalizedSearch(text){return String(text).toLocaleLowerCase().replace(/[\s_-]+/g,"")}
     function value(key,fallback){settingsRevision;return controller?controller.setting(key,fallback):fallback}
     function save(key,input){if(controller)controller.setSetting(key,input)}
+    function optionArrival(item,phase,spacing){
+        if(phase>=1)return 1
+        const top=Math.max(0,contentTop(item)-contentScroll.contentItem.contentY)
+        const delay=Math.min(.58,top/Math.max(1,contentScroll.height)*spacing)
+        return Math.max(0,Math.min(1,(phase-delay)/.42))
+    }
+    function arrivalOffset(progress,offset){
+        const remaining=1-progress
+        return offset*remaining*remaining*(remaining-1.6*progress)
+    }
     function sectionTitle(group,section){
         for(let i=0;i<catalog.length;i++)if(catalog[i].group===group&&catalog[i].section===section&&catalog[i].sectionLabel)return catalog[i].sectionLabel
         return sectionNames[group]&&sectionNames[group][section]?sectionNames[group][section]:qsTr("Other options")
@@ -402,6 +413,9 @@ Item {
         property string kind: descriptor.type||"bool"
         property var currentValue: {page.settingsRevision;if(!appearance)return page.value(key,descriptor.defaultValue);const config=page.controller?page.controller.appearanceConfig(scope):({});return config[key]===undefined?descriptor.defaultValue:config[key]}
         property bool editable: {page.settingsRevision;return !appearance||!page.controller||scope==="global"||!page.controller.appearanceInherited(scope)}
+        readonly property real arrival:page.optionArrival(row,groupCaches.itemAt(page.activeGroup)?.reveal??1,.54)
+        opacity:Math.min(1,arrival*1.55)
+        transform:Translate{y:page.arrivalOffset(row.arrival,12)}
         implicitHeight:44
         Layout.fillWidth:true
         objectName:"setting-"+(appearance?"appearance/":"")+key
@@ -451,8 +465,12 @@ Item {
             RowLayout {
                 visible:row.kind==="color";enabled:row.editable;spacing:6
                 Field {id:colorText;objectName:"color-"+row.key;Layout.preferredWidth:110;text:String(row.currentValue);Accessible.name:row.descriptor.label;onEditingFinished:{row.commit(text.trim());text=String(row.currentValue)}}
-                FlatButton {implicitWidth:32;Accessible.name:qsTr("Choose %1").arg(row.descriptor.label);onClicked:{colorPicker.selectedColor=row.currentValue==="auto"?page.accent:String(row.currentValue);colorPicker.open()}background:Rectangle{anchors.centerIn:parent;width:24;height:24;radius:7;color:row.currentValue==="auto"?page.accent:String(row.currentValue);border.width:1;border.color:tokens.border}}
-                ColorDialog{id:colorPicker;title:row.descriptor.label;options:ColorDialog.ShowAlphaChannel;onAccepted:row.commit(selectedColor.toString())}
+                FlatButton {
+                    objectName:"pick-color-"+row.key
+                    implicitWidth:32;Accessible.name:qsTr("Choose %1").arg(row.descriptor.label)
+                    onClicked:colorPicker.choose(row)
+                    background:Rectangle{anchors.centerIn:parent;width:24;height:24;radius:7;color:row.currentValue==="auto"?page.accent:String(row.currentValue);border.width:1;border.color:tokens.border}
+                }
             }
             Field {
                 objectName:"shortcut-"+row.key
@@ -622,32 +640,34 @@ Item {
         }
     }
     component PinnedHeaderGlass: Loader {
-        id: pinnedGlass
+        id:pinnedGlass
         required property real pinnedOffset
-        property real radius:12
         anchors.fill:parent
         active:page.visible&&pinnedOffset>0
-        sourceComponent: GlassMaterial {
-            sourceItem:page.materialSource
-            sourceRect:{
-                // Scrolling and sticky translation move the sample together.
-                const scroll=contentScroll.contentItem.contentY
-                const offset=pinnedGlass.pinnedOffset
-                const transition=categoryOffset.y+page.entranceOffset
-                return sourceItem?pinnedGlass.mapToItem(sourceItem,Qt.rect(0,0,width,height)):Qt.rect(0,0,0,0)
+        sourceComponent: Item {
+            id:frost
+            clip:true
+            readonly property int bleed:18
+            readonly property bool blurEnabled:page.materialSource!==null&&!page.highContrast&&GraphicsInfo.api!==GraphicsInfo.Software
+            Rectangle{anchors.fill:parent;color:tokens.elevated}
+            ShaderEffectSource {
+                id:sample
+                visible:false
+                sourceItem:frost.blurEnabled?page.materialSource:null
+                sourceRect:{
+                    contentScroll.contentItem.contentY
+                    pinnedGlass.pinnedOffset
+                    categoryOffset.y
+                    page.y
+                    return sourceItem?pinnedGlass.mapToItem(sourceItem,Qt.rect(-frost.bleed,-frost.bleed,frost.width+2*frost.bleed,frost.height+2*frost.bleed)):Qt.rect(0,0,0,0)
+                }
             }
-            glassEnabled:page.groupGlass&&GraphicsInfo.api!==GraphicsInfo.Software
-            dark:!page.light;motion:false;rasterScale:page.rasterScale
-            backdropColor:tokens.base;tintColor:page.groupFill
-            fallbackColor:Qt.tint(tokens.elevated,page.groupFill)
-            cornerRadius:pinnedGlass.radius
-            configuration:({glassOpacity:page.groupFill.a,glassTintStrength:1,glassBlur:9,
-                glassRefraction:.24,glassDistortion:.42,glassDispersion:.035,
-                glassEdgeGlow:.08,glassShadow:0,quality:0})
-            Rectangle {
-                anchors.fill:parent;radius:pinnedGlass.radius;color:"transparent"
-                border.width:page.groupBorder.a>0?1:0;border.color:page.groupBorder
+            MultiEffect {
+                anchors.fill:parent;anchors.margins:-frost.bleed
+                visible:frost.blurEnabled;source:sample
+                blurEnabled:true;blurMax:28;blur:.95;autoPaddingEnabled:false
             }
+            Rectangle{anchors.fill:parent;color:page.groupFill}
         }
     }
     component LyricSubgroup: ColumnLayout {
@@ -668,7 +688,7 @@ Item {
         Item {
           id:subgroupBar;Layout.fillWidth:true;implicitHeight:36;z:2
           transform:Translate{y:subgroup.pinnedOffset}
-          PinnedHeaderGlass {pinnedOffset:subgroup.pinnedOffset;radius:10}
+          PinnedHeaderGlass {pinnedOffset:subgroup.pinnedOffset}
           FlatButton {
             id:subgroupHeading;objectName:"subgroup-heading-"+subgroup.groupIndex+"/"+subgroup.sectionIndex+"/"+subgroup.subgroupData.key
             anchors.fill:parent;text:subgroup.subgroupData.label;implicitHeight:36
@@ -706,6 +726,9 @@ Item {
         property bool specialized:(groupIndex===2&&sectionIndex===0)||(groupIndex===1&&(sectionIndex===0||sectionIndex===1))||(groupIndex===3&&(sectionIndex===0||sectionIndex===6))||appearance
         objectName:"section-"+groupIndex+"/"+sectionIndex
         Layout.fillWidth:true;implicitHeight:sectionLayout.implicitHeight;visible:specialized||allRows.length>0
+        readonly property real arrival:page.optionArrival(sectionBlock,groupCaches.itemAt(groupIndex)?.reveal??1,.36)
+        opacity:Math.min(1,arrival*1.55)
+        transform:Translate{y:page.arrivalOffset(sectionBlock.arrival,17)}
         Rectangle {
             anchors.fill:parent
             radius:14;color:page.groupFill
@@ -814,11 +837,6 @@ Item {
                 Label{visible:page.searchResults.length===0;text:qsTr("No matching settings");color:tokens.secondaryText;padding:12}
             }
         }
-        BusyIndicator {
-            objectName:"settingsLoading";Layout.alignment:Qt.AlignHCenter
-            running:page.visible&&!resultsScroll.visible&&groupCaches.itemAt(page.activeGroup)&&groupCaches.itemAt(page.activeGroup).status!==Loader.Ready
-            visible:running;implicitWidth:30;implicitHeight:30
-        }
         SettingsScroller {
             id:contentScroll;objectName:"settingsScroll";transform:Translate{id:categoryOffset}
             visible:!resultsScroll.visible;Layout.fillWidth:true;Layout.fillHeight:true
@@ -833,12 +851,16 @@ Item {
                         objectName:"settings-group-cache-"+index
                         Layout.fillWidth:true;visible:page.activeGroup===index
                         active:visited;asynchronous:true
-                        property real reveal:status===Loader.Ready?1:0
-                        opacity:reveal;transform:Translate{y:(1-groupCache.reveal)*6}
-                        Behavior on reveal{enabled:page.motion&&groupCache.visible;NumberAnimation{duration:140;easing.type:Easing.OutCubic}}
-                        onVisibleChanged:if(visible)visited=true
+                        property real reveal:0
+                        function startArrival(){
+                            if(!visible||status!==Loader.Ready||reveal!==0||arrivalMotion.running)return
+                            if(page.motion)arrivalMotion.start()
+                            else reveal=1
+                        }
+                        NumberAnimation{id:arrivalMotion;target:groupCache;property:"reveal";from:0;to:1;duration:440}
+                        onVisibleChanged:if(visible){visited=true;startArrival()}
                         Component.onCompleted:if(visible)visited=true
-                        onLoaded:if(page.activeGroup===index){restoreScroll.restart();sectionJump.restart();if(page.highlightedKey)jumpTimer.restart()}
+                        onLoaded:if(page.activeGroup===index){restoreScroll.restart();sectionJump.restart();if(page.highlightedKey)jumpTimer.restart();startArrival()}
                         sourceComponent:ColumnLayout {
                             width:groupCache.width;spacing:10
                             Repeater{model:page.sectionsForGroup(groupCache.index);SectionBlock{required property var modelData;groupIndex:groupCache.index;sectionIndex:modelData.index}}
@@ -860,6 +882,113 @@ Item {
         light: page.light; motion: page.motion; foreground: page.textColor; surface: tokens.elevated; accent: page.accent
         highContrast: page.highContrast
         glassEnabled: !page.highContrast&&page.value("appearance/style","liquid")==="liquid"
+    }
+    ConfirmDialog {
+        id:colorPicker
+        objectName:"settingsColorPicker"
+        anchors.centerIn:Overlay.overlay
+        width:Math.min(368,page.width-24)
+        standardButtons:Dialog.Ok|Dialog.Cancel
+        property Item targetRow:null
+        property real hue:0
+        property real saturation:0
+        property real brightness:1
+        property real alpha:1
+        readonly property color selected:Qt.hsva(hue,saturation,brightness,alpha)
+        function readColor(value){
+            if(!/^#(?:[0-9a-f]{6}|[0-9a-f]{8})$/i.test(value))return false
+            const color=Qt.color(value)
+            if(color.hsvHue>=0)hue=color.hsvHue
+            saturation=color.hsvSaturation;brightness=color.hsvValue;alpha=color.a
+            return true
+        }
+        function choose(row){
+            targetRow=row
+            title=row.descriptor.label
+            readColor(String(row.currentValue==="auto"?page.accent:row.currentValue))
+            hexColor.text=Qt.binding(function(){return String(colorPicker.selected)})
+            open()
+        }
+        onAccepted:if(targetRow){readColor(hexColor.text.trim());targetRow.commit(selected.toString())}
+        onClosed:targetRow=null
+        contentItem:ColumnLayout {
+            spacing:12
+            Rectangle {
+                id:saturationPlane
+                Layout.fillWidth:true;implicitHeight:120;radius:10
+                color:Qt.hsva(colorPicker.hue,1,1,1)
+                layer.enabled:GraphicsInfo.api!==GraphicsInfo.Software
+                layer.effect:MultiEffect {
+                    maskEnabled:true
+                    maskSource:paletteMask
+                }
+                Rectangle {
+                    id:paletteMask
+                    anchors.fill:parent;radius:10;visible:false;layer.enabled:true
+                }
+                Rectangle {
+                    anchors.fill:parent
+                    gradient:Gradient{orientation:Gradient.Horizontal;GradientStop{position:0;color:"white"}GradientStop{position:1;color:"#00ffffff"}}
+                }
+                Rectangle {
+                    anchors.fill:parent
+                    gradient:Gradient{GradientStop{position:0;color:"#00000000"}GradientStop{position:1;color:"black"}}
+                }
+                Rectangle {
+                    width:16;height:16;radius:8;color:Qt.hsva(colorPicker.hue,colorPicker.saturation,colorPicker.brightness,1)
+                    border.color:"white";border.width:2
+                    x:colorPicker.saturation*(parent.width-width)
+                    y:(1-colorPicker.brightness)*(parent.height-height)
+                }
+                MouseArea {
+                    anchors.fill:parent
+                    function select(x,y){
+                        colorPicker.saturation=Math.max(0,Math.min(1,x/width))
+                        colorPicker.brightness=1-Math.max(0,Math.min(1,y/height))
+                    }
+                    onPressed:function(mouse){select(mouse.x,mouse.y)}
+                    onPositionChanged:function(mouse){if(pressed)select(mouse.x,mouse.y)}
+                }
+            }
+            Slider {
+                id:hueSlider
+                Layout.fillWidth:true;implicitHeight:28
+                value:colorPicker.hue;stepSize:.005
+                Accessible.name:qsTr("Hue")
+                onMoved:colorPicker.hue=value
+                background:Rectangle {
+                    x:hueSlider.leftPadding;y:(hueSlider.height-height)/2;width:hueSlider.availableWidth;height:8;radius:4
+                    gradient:Gradient {
+                        orientation:Gradient.Horizontal
+                        GradientStop{position:0;color:"#f55"} GradientStop{position:1/6;color:"#ff5"}
+                        GradientStop{position:2/6;color:"#5f5"} GradientStop{position:3/6;color:"#5ff"}
+                        GradientStop{position:4/6;color:"#55f"} GradientStop{position:5/6;color:"#f5f"}
+                        GradientStop{position:1;color:"#f55"}
+                    }
+                }
+                handle:Rectangle {
+                    x:hueSlider.leftPadding+hueSlider.visualPosition*(hueSlider.availableWidth-width)
+                    y:(hueSlider.height-height)/2;width:17;height:17;radius:9
+                    color:Qt.hsva(colorPicker.hue,1,1,1);border.color:hueSlider.visualFocus?page.accent:"white";border.width:2
+                }
+            }
+            RowLayout {
+                Layout.fillWidth:true;spacing:8
+                Label{text:qsTr("Opacity");color:tokens.secondaryText}
+                Slider{Layout.fillWidth:true;value:colorPicker.alpha;stepSize:.01;Accessible.name:qsTr("Opacity");onMoved:colorPicker.alpha=value}
+                Label{text:Math.round(colorPicker.alpha*100)+"%";color:page.textColor;Layout.minimumWidth:36;horizontalAlignment:Text.AlignRight}
+            }
+            RowLayout {
+                Layout.fillWidth:true
+                Rectangle{width:34;height:30;radius:7;color:colorPicker.selected;border.width:1;border.color:tokens.border}
+                Field {
+                    id:hexColor;objectName:"settingsColorHex"
+                    Layout.fillWidth:true;text:String(colorPicker.selected);maximumLength:9
+                    Accessible.name:qsTr("Hex color")
+                    onEditingFinished:colorPicker.readColor(text.trim())
+                }
+            }
+        }
     }
     component PresetFooter: Item {
         id:presetFooter

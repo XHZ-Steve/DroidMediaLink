@@ -133,6 +133,10 @@
 <context>
     <name>Bridge</name>
     <message>
+        <source>Instrumental — enjoy the music</source>
+        <translation>纯音乐，请欣赏</translation>
+    </message>
+    <message>
         <source>Unable to save settings</source>
         <translation>无法保存设置</translation>
     </message>
@@ -2232,6 +2236,18 @@
 </context>
 <context>
     <name>SettingsPage</name>
+    <message>
+        <source>Opacity</source>
+        <translation>不透明度</translation>
+    </message>
+    <message>
+        <source>Hue</source>
+        <translation>色相</translation>
+    </message>
+    <message>
+        <source>Hex color</source>
+        <translation>十六进制颜色</translation>
+    </message>
     <message>
         <source>Restart now</source>
         <translation>现在重启</translation>

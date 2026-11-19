@@ -83,6 +83,16 @@ inline QVariantList parse(const QString &input) {
  return result;
 }
 inline int lineAt(const QVector<qint64> &times,qint64 position){return int(std::upper_bound(times.cbegin(),times.cend(),position)-times.cbegin())-1;}
+inline QVariantList instrumentalRows(){
+ return {QVariantMap{{"time",0},{"end",9000000000000LL},{"text",QString()},{"untimed",true},{"instrumental",true}}};
+}
+inline bool isInstrumental(const QVariantList &rows){
+ if(rows.size()!=1)return false;
+ const auto row=rows.first().toMap();
+ if(row.value("instrumental").toBool())return true;
+ static const QRegularExpression marker(QStringLiteral("^(?:纯音乐[，,、：: ]*请欣赏[。.!！]*|纯音乐[，, ]*(?:无歌词|没有歌词)[。.!！]*|instrumental(?: only)?[.!]*)$"),QRegularExpression::CaseInsensitiveOption);
+ return marker.match(row.value("text").toString().trimmed()).hasMatch();
+}
 inline QVariantList validated(const QVariantList &rows){
  if(rows.size()>10000)return {};qint64 previous=-1;qsizetype characters=0,words=0;QVariantList result;
  for(const auto &value:rows){auto row=value.toMap();if(!row.contains("time")||!row.contains("text"))return {};bool ok=false;const auto at=row.value("time").toLongLong(&ok);if(!ok||at<previous||at<0||at>18000000000000LL)return {};previous=at;characters+=row.value("text").toString().size()+row.value("translation").toString().size()+row.value("romanization").toString().size();auto syllables=row.value("words").toList();if(syllables.size()>1024||row.value("text").toString().size()>8192||row.value("translation").toString().size()>8192||row.value("romanization").toString().size()>8192)return {};words+=syllables.size();if(words>40000||characters>2*1024*1024)return {};for(const auto &syllable:syllables){const auto word=syllable.toMap();const auto start=word.value("time").toLongLong(&ok);if(!ok||start<0||start>18000000000000LL||!word.contains("text"))return {};if(word.contains("end")){const auto until=word.value("end").toLongLong(&ok);if(!ok||until<=start||until>18000000000000LL)return {};}characters+=word.value("text").toString().size();if(characters>4*1024*1024)return {};}result<<row;}

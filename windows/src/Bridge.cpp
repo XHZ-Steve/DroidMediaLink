@@ -150,7 +150,15 @@ void Bridge::receive(QString message){if(message.toUtf8().size()>4*1024*1024){m_
 QStringList Bridge::commands()const{QStringList list;for(const auto&v:m_media.value("commands").toArray())list<<v.toString();return list;}
 qint64 Bridge::position()const{qint64 value=m_position;if(playing()&&m_anchor.isValid())value+=qint64(m_anchor.elapsed()*qBound(-16.,m_media.value("speed").toDouble(1),16.));return qBound<qint64>(0,value,duration()>0?duration():std::numeric_limits<qint64>::max());}
 int Bridge::currentLine()const{return m_currentLyricLine;}
-void Bridge::setLyrics(QVariantList rows,QString source){m_lyrics=LyricTimeline::validated(rows);m_lyricSource=std::move(source);m_lyricsLoading=false;m_lyricTimes.clear();m_lyricTimes.reserve(m_lyrics.size());if(m_lyrics.isEmpty()||!m_lyrics.first().toMap().value("untimed").toBool())for(const auto &row:m_lyrics)m_lyricTimes<<row.toMap().value("time").toLongLong();emit lyricsChanged();updateLyricClock();m_cacheScan.start();}
+void Bridge::setLyrics(QVariantList rows,QString source){
+ m_lyrics=LyricTimeline::validated(rows);
+ if(LyricTimeline::isInstrumental(m_lyrics)){
+  auto label=LyricTimeline::instrumentalRows().first().toMap();
+  label["text"]=tr("Instrumental — enjoy the music");
+  m_lyrics={label};
+ }
+ m_lyricSource=std::move(source);m_lyricsLoading=false;m_lyricTimes.clear();m_lyricTimes.reserve(m_lyrics.size());if(m_lyrics.isEmpty()||!m_lyrics.first().toMap().value("untimed").toBool())for(const auto &row:m_lyrics)m_lyricTimes<<row.toMap().value("time").toLongLong();emit lyricsChanged();updateLyricClock();m_cacheScan.start();
+}
 void Bridge::updateLyricClock(){if(m_dragging)return;const auto line=LyricTimeline::lineAt(m_lyricTimes,lyricPosition());if(line!=m_currentLyricLine){m_currentLyricLine=line;emit lyricLineChanged();}emit lyricProgressChanged();const bool run=m_uiVisible&&!m_lyricSurfaces.isEmpty()&&playing()&&!m_lyrics.isEmpty();if(run&&!m_lyricClock.isActive())m_lyricClock.start();else if(!run)m_lyricClock.stop();}
 void Bridge::setLyricsVisible(QString surface,bool visible){if(surface.size()>100)return;if(visible)m_lyricSurfaces.insert(surface);else m_lyricSurfaces.remove(surface);updateLyricClock();}
 void Bridge::cancelLyricRequest(){++m_lyricGeneration;if(m_lyricProviders)m_lyricProviders->cancel();if(m_lyricReply){auto reply=m_lyricReply;m_lyricReply=nullptr;reply->abort();}m_lyricsLoading=false;}
@@ -282,7 +290,7 @@ QVariantList Bridge::lyricProviders()const{
  const auto phone=phoneLyricRows();rows.prepend(QVariantMap{{"id","phone"},{"name",QCoreApplication::translate("Settings","Phone lyrics")},{"capabilities",QStringList{"line","word","translation"}},{"status",phone.isEmpty()?"empty":"available"},{"enabled",phoneLyricsEnabled()},{"enabledKey","lyrics/providers/phone/enabled"},{"lastError",QString()}});return rows;
 }
 void Bridge::supplementCurrentLyrics(){
- if(!setting("lyrics/crossSourceTranslation",false).toBool()||m_lyrics.isEmpty())return;
+ if(!setting("lyrics/crossSourceTranslation",false).toBool()||m_lyrics.isEmpty()||LyricTimeline::isInstrumental(m_lyrics))return;
  auto providers=lyricProviderOrder();providers.removeAll(m_lyricProvider);supplementLyricTranslation(providers,0,lyricKey(),m_lyricGeneration);
 }
 QStringList Bridge::lyricProviderOrder()const{
@@ -440,7 +448,7 @@ void Bridge::enhanceCover(bool refresh){
  QStringList priority;for(auto id:setting("cover/source","netease,qq,musicbrainz").toString().split(','))if(setting("cover/providers/"+id+"/enabled",true).toBool())priority<<id;
  // Metadata and the phone image can arrive in separate snapshots. Never latch
  // an incomplete identity or reuse an attempt's obsolete minimum image size.
- if(track.title.isEmpty()||track.artist.isEmpty()||track.duration<=0){m_coverRequestKey.clear();for(auto id:priority)m_coverStates[id]={{"status","incomplete"}};emit coverProvidersChanged();return;}
+ if(track.title.isEmpty()||track.artist.isEmpty()){m_coverService->cancel();m_coverRequestKey.clear();for(auto id:priority)m_coverStates[id]={{"status","incomplete"}};emit coverProvidersChanged();return;}
  const auto minimum=qMax(0,qMin(m_phonePixels.width(),m_phonePixels.height()));
  const auto key=track.key()+QString::number(target)+mode+priority.join(',')+QString::number(minimum);
  if(!refresh&&m_coverRequestKey==key)return;
@@ -472,7 +480,7 @@ QString Bridge::coverSource()const{
 void Bridge::testCoverProvider(QString id){
  if(!QStringList{"netease","qq","musicbrainz"}.contains(id))return;
  m_coverTestService->cancel();for(auto it=m_coverTestStates.begin();it!=m_coverTestStates.end();++it)if(QStringList{"testing","searching","downloading","decoding"}.contains(it.value().value("status").toString()))it.value()["status"]="unknown";
- CoverArtTrack track{title(),artist(),album(),duration()};if(track.title.isEmpty()||track.artist.isEmpty()||track.duration<=0){m_coverTestStates[id]={{"status","incomplete"}};emit coverProvidersChanged();return;}
+ CoverArtTrack track{title(),artist(),album(),duration()};if(track.title.isEmpty()||track.artist.isEmpty()){m_coverTestStates[id]={{"status","incomplete"}};emit coverProvidersChanged();return;}
  m_coverTestService->setPriority({id});m_coverTestStates[id]={{"status","testing"}};emit coverProvidersChanged();
  m_coverTestService->request(track,setting("cover/resolution",1200).toInt(),true,[this](CoverArtResult){emit coverProvidersChanged();});
 }

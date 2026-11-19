@@ -138,13 +138,13 @@ public:
   {
    Bridge cover;cover.m_settings.setValue("preferences/cover/mode","high");
    for(auto id:QStringList{"netease","qq","musicbrainz"})cover.m_settings.setValue("preferences/cover/providers/"+id+"/enabled",false);
-   cover.m_media={{"title","TEST deferred artwork"},{"artist","TEST artist"},{"durationMs",0}};
+   cover.m_media={{"title","TEST deferred artwork"},{"durationMs",0}};
    cover.enhanceCover();if(!cover.m_coverRequestKey.isEmpty())return 94;
-   cover.m_media["durationMs"]=200000;cover.enhanceCover();auto key=cover.m_coverRequestKey;if(key.isEmpty())return 95;
+   cover.m_media["artist"]="TEST artist";cover.enhanceCover();auto key=cover.m_coverRequestKey;if(key.isEmpty())return 95;
    cover.m_phonePixels=QSize(363,363);cover.enhanceCover();if(cover.m_coverRequestKey==key)return 96;
    cover.m_coverTestStates["netease"]={{"status","error"}};cover.m_coverRequestKey.clear();cover.enhanceCover();if(cover.m_coverRetry.isActive())return 97;
    cover.m_coverSource.clear();cover.m_enhancedPixels=QSize(2000,2000);if(!cover.coverSource().contains("363"))return 99;
-   cover.m_media["durationMs"]=0;const auto artwork=cover.artwork();cover.testCoverProvider("qq");if(cover.m_coverTestStates["qq"].value("status")!="incomplete"||cover.artwork()!=artwork)return 98;
+   cover.m_media.remove("artist");const auto artwork=cover.artwork();cover.testCoverProvider("qq");if(cover.m_coverTestStates["qq"].value("status")!="incomplete"||cover.artwork()!=artwork)return 98;
   }
   {
    Bridge volume;volume.m_online=true;volume.m_media={{"commands",QJsonArray{"volume"}},{"volume",2},{"maxVolume",10}};

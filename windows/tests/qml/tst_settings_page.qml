@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtTest
 import "../../qml"
 
@@ -29,6 +30,7 @@ Item {
             {key:"motion",label:"TEST animations",group:0,section:0,type:"bool",defaultValue:true},
             {key:"language",label:"TEST language",group:0,section:0,type:"enum",defaultValue:"en",options:[{label:"English",value:"en"},{label:"简体中文",value:"zh_CN"}]},
             {key:"shortcut",label:"TEST shortcut",group:0,section:0,type:"shortcut",defaultValue:""},
+            {key:"testColor",label:"TEST color",group:0,section:0,type:"color",defaultValue:"auto"},
             {key:"lyrics/offset",label:"TEST sync offset",group:3,section:4,type:"int",defaultValue:0,min:-10000,max:10000,step:100,advanced:true},
             {key:"lyrics/testScroll",label:"TEST scroll effect",group:3,section:4,type:"bool",defaultValue:false,advanced:true,subgroup:"scroll"}
         ]
@@ -231,12 +233,30 @@ Item {
             mouseClick(toggle,toggle.width/2,toggle.height/2)
             compare(controller.appearance.glassMotion,false)
         }
-        function test_a_cold_category_shows_loading_indicator(){
+        function test_a_cold_category_reveals_options(){
+            page.motion=true
             page.navigate(5,0)
-            const cache=findChild(page,"settings-group-cache-5"),spinner=findChild(page,"settingsLoading")
-            verify(cache);verify(spinner)
-            if(cache.status!==Loader.Ready)verify(spinner.running)
-            tryCompare(cache,"status",Loader.Ready);tryCompare(spinner,"running",false)
+            const cache=findChild(page,"settings-group-cache-5")
+            verify(cache)
+            tryVerify(function(){return cache.reveal>0&&cache.reveal<1})
+            tryCompare(cache,"reveal",1)
+            page.motion=false
+        }
+        function test_color_palette_commits_and_cancels(){
+            const swatch=findChild(page,"pick-color-testColor"),picker=findChild(page,"settingsColorPicker")
+            verify(swatch);verify(picker)
+            mouseClick(swatch)
+            tryCompare(picker,"opened",true)
+            compare(picker.popupType,Popup.Item)
+            verify(picker.readColor("#7f1a3c5d"))
+            picker.accept()
+            compare(controller.values.testColor,"#7f1a3c5d")
+            tryCompare(picker,"visible",false)
+            mouseClick(swatch)
+            tryCompare(picker,"opened",true)
+            verify(picker.readColor("#ffaa33"))
+            picker.reject()
+            compare(controller.values.testColor,"#7f1a3c5d")
         }
         function test_action_routes_to_host(){
             page.runAction({key:"test-search",action:"searchDevices"})

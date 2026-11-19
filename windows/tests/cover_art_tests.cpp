@@ -72,8 +72,14 @@ int main(int argc,char **argv){
  originalDone=false;originalUri.request(uriTrack,2048,[&](QByteArray,QString,bool){originalDone=true;});originalUri.cancel();QEventLoop cancelledOriginal;QTimer::singleShot(100,&cancelledOriginal,&QEventLoop::quit);cancelledOriginal.exec();if(originalDone)return 17;
  qInfo()<<"PASS published HTTPS original URI, untrusted origin rejection and stale original callback cancellation";
  service.cancel();qInfo()<<"PASS matching (6 rejection cases), decoding, album/song cache hits, corrupt download fallback and cache clear";
- for(const auto &bad:QList<CoverArtTrack>{{track.title,"other artist",track.album,track.duration},{track.title,track.artist,"other album",track.duration},{track.title+" (Live)",track.artist,track.album,track.duration},{track.title,track.artist,track.album,track.duration+20000}})if(!CatalogCoverArtProvider::selectCandidate("netease",bad,{netRow}).isEmpty())return 40;
+ if(!CatalogCoverArtProvider::selectCandidate("netease",{track.title,"other artist",track.album,track.duration},{netRow}).isEmpty())return 40;
  auto alternate=netRow;auto altAlbum=alternate["album"].toObject();altAlbum["id"]=67891;alternate["album"]=altAlbum;if(!CatalogCoverArtProvider::selectCandidate("netease",track,{netRow,alternate}).isEmpty())return 41;
+ auto extended=netRow;extended["name"]=track.title+" (Extended Mix)";extended["album"]=altAlbum;
+ const CoverArtTrack tagged{track.title+QStringLiteral(" (Extended Mix) （译名）"),track.artist,"other album",0};
+ if(CatalogCoverArtProvider::selectCandidate("netease",tagged,{netRow,extended})!=extended)return 62;
+ if(CatalogCoverArtProvider::selectCandidate("netease",tagged,{netRow})!=netRow)return 63;
+ extended["name"]=track.title+" (Live)";
+ if(!CatalogCoverArtProvider::selectCandidate("netease",tagged,{extended}).isEmpty())return 64;
  auto duet=netRow;duet["artists"]=QJsonArray{QJsonObject{{"name","B"}},QJsonObject{{"name","A"}}};auto duetTrack=track;duetTrack.artist="A & B";if(CatalogCoverArtProvider::selectCandidate("netease",duetTrack,{duet}).isEmpty())return 42;
  if(CatalogCoverArtProvider::trusted("netease",QUrl("https://music.126.net.attacker.invalid/image"),true)||CatalogCoverArtProvider::trusted("qq",QUrl("http://y.gtimg.cn/image"),true)||CatalogCoverArtProvider::trusted("qq",QUrl("https://user:secret@y.gtimg.cn/image"),true))return 43;
  service.clear();service.setPriority({"netease","qq","musicbrainz"});corrupt=false;
@@ -95,6 +101,16 @@ int main(int argc,char **argv){
  if(app.arguments().contains("--live-catalogs")){
   CoverArtTrack actual{"L.I.F.E.","Remady/Manu-L","L.I.F.E.",179505};CoverArtService live(directory.path()+"/catalog-live");
   for(const auto &id:QStringList{"netease","qq"}){live.setPriority({id});bool complete=false;QEventLoop wait;CoverArtResult found;live.request(actual,2048,true,[&](CoverArtResult r){found=r;complete=true;wait.quit();},363);QTimer::singleShot(45000,&wait,&QEventLoop::quit);if(!complete)wait.exec();if(!complete||found.path.isEmpty()||found.source!=id){qCritical()<<"LIVE catalogue unavailable or no match"<<id;return 50;}qInfo()<<"LIVE matched catalogue"<<id<<found.release<<found.pixels;complete=false;live.request(actual,2048,false,[&](CoverArtResult r){found=r;complete=true;wait.quit();},363);if(!complete)wait.exec();if(!found.cached)return 51;qInfo()<<"LIVE catalogue cache replay"<<id;}
+ }
+ if(app.arguments().contains("--live-netease-extended")){
+  CoverArtService live(directory.path()+"/netease-extended");
+  live.setPriority({"netease"});
+  const CoverArtTrack actual{QStringLiteral("MAGENTA POTION (Extended Mix) (洋红色药水)"),"EmoCosine","",0};
+  QEventLoop wait;bool complete=false;
+  live.request(actual,1200,true,[&](CoverArtResult response){result=response;complete=true;wait.quit();});
+  QTimer::singleShot(45000,&wait,&QEventLoop::quit);if(!complete)wait.exec();
+  if(!complete||result.release!="netease:135775023"||result.path.isEmpty())return 65;
+  qInfo()<<"LIVE NetEase extended release"<<result.release<<result.pixels;
  }
  if(app.arguments().contains("--live")){
   CoverArtService live(directory.path()+"/live");CoverArtTrack actual{"The Scientist","Coldplay","A Rush of Blood to the Head",309000};QEventLoop wait;bool completed=false;live.request(actual,1200,false,[&](CoverArtResult r){result=r;completed=true;wait.quit();});QTimer::singleShot(45000,&wait,&QEventLoop::quit);wait.exec();
