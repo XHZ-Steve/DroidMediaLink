@@ -7,7 +7,6 @@
 #include "../tests/NativeChromeSmoke.h"
 #include "../tests/DesktopTransparencySmoke.h"
 #include <QApplication>
-#include <QMessageBox>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
@@ -60,7 +59,17 @@ public:
 int main(int argc,char **argv){
  QElapsedTimer startupClock;startupClock.start();
  QQuickWindow::setDefaultAlphaBuffer(true);
- SetCurrentProcessExplicitAppUserModelID(L"DroidMediaLink.Desktop");LinkApplication app(argc,argv);app.setFont(QFont("Microsoft YaHei UI"));app.setOrganizationName("DroidMediaLink");app.setApplicationName("DroidMediaLink");app.setApplicationVersion("1.1.0");app.setQuitOnLastWindowClosed(false);QQuickStyle::setStyle("Basic");
+ SetCurrentProcessExplicitAppUserModelID(L"DroidMediaLink.Desktop");LinkApplication app(argc,argv);
+ // D3D transparent windows use DirectComposition; do not allocate an opaque
+ // GDI redirection bitmap behind their visuals. This Qt platform option must
+ // be selected before HWND creation; setting the native bit afterwards fails.
+ const auto graphicsApi=QQuickWindow::graphicsApi();
+ auto sceneBackend=QQuickWindow::sceneGraphBackend();
+ if(sceneBackend.isEmpty())sceneBackend=qEnvironmentVariable("QMLSCENE_DEVICE");
+ if(sceneBackend.isEmpty())sceneBackend=qEnvironmentVariable("QT_QUICK_BACKEND");
+ const auto deviceAt=app.arguments().indexOf("--device");if(deviceAt>=0&&deviceAt+1<app.arguments().size())sceneBackend=app.arguments()[deviceAt+1];
+ if((sceneBackend.isEmpty()||sceneBackend==QStringLiteral("rhi"))&&(graphicsApi==QSGRendererInterface::Direct3D11||graphicsApi==QSGRendererInterface::Direct3D12)&&!qEnvironmentVariableIsSet("QT_QPA_DISABLE_REDIRECTION_SURFACE"))qputenv("QT_QPA_DISABLE_REDIRECTION_SURFACE","1");
+ app.setFont(QFont("Microsoft YaHei UI"));app.setOrganizationName("DroidMediaLink");app.setApplicationName("DroidMediaLink");app.setApplicationVersion("1.1.0");app.setQuitOnLastWindowClosed(false);QQuickStyle::setStyle("Basic");
  QString instanceName="DroidMediaLink.primary";
  const int profileIndex=app.arguments().indexOf("--test-profile");
  if(profileIndex>=0&&profileIndex+1<app.arguments().size()){
@@ -76,7 +85,7 @@ int main(int argc,char **argv){
  if(profileIndex>=0){const auto args=app.arguments();int at=args.indexOf("--preview-cover");if(at>=0&&at+1<args.size())backend.previewCoverForTest(args[at+1]);}
  if(profileIndex>=0){const auto args=app.arguments();int at=args.indexOf("--preview-lyrics");if(at>=0&&at+1<args.size())backend.importLyrics(QUrl::fromLocalFile(QFileInfo(args[at+1]).absoluteFilePath()));}
  if(profileIndex>=0&&app.arguments().contains("--check-updates"))QTimer::singleShot(700,&backend,&Bridge::checkUpdates);
- QStringList startupErrors;QQmlApplicationEngine engine;const auto startupWarningConnection=QObject::connect(&engine,&QQmlEngine::warnings,&app,[&startupErrors](const QList<QQmlError>&errors){for(const auto &error:errors)if(startupErrors.size()<32)startupErrors<<error.toString();});engine.rootContext()->setContextProperty("backend",&backend);engine.load(QUrl("qrc:/qt/qml/DroidMediaLink/qml/Main.qml"));QObject::disconnect(startupWarningConnection);if(engine.rootObjects().isEmpty()){QMessageBox::critical(nullptr,"DroidMediaLink",QCoreApplication::translate("Main","The interface could not be loaded.")+"\n\n"+startupErrors.join("\n"));return 1;}auto window=qobject_cast<QQuickWindow*>(engine.rootObjects().first());if(!window)return 1;
+ QStringList startupErrors;QQmlApplicationEngine engine;const auto startupWarningConnection=QObject::connect(&engine,&QQmlEngine::warnings,&app,[&startupErrors](const QList<QQmlError>&errors){for(const auto &error:errors)if(startupErrors.size()<32)startupErrors<<error.toString();});engine.rootContext()->setContextProperty("backend",&backend);engine.load(QUrl("qrc:/qt/qml/DroidMediaLink/qml/Main.qml"));QObject::disconnect(startupWarningConnection);if(engine.rootObjects().isEmpty()){const auto message=QCoreApplication::translate("Main","The interface could not be loaded.")+"\n\n"+startupErrors.join("\n");MessageBoxW(nullptr,reinterpret_cast<LPCWSTR>(message.utf16()),L"DroidMediaLink",MB_OK|MB_ICONERROR);return 1;}auto window=qobject_cast<QQuickWindow*>(engine.rootObjects().first());if(!window)return 1;
  if(auto desktop=window->findChild<QQuickWindow*>("desktop")){desktop->setPersistentGraphics(false);desktop->setPersistentSceneGraph(false);}
  const auto argsForTray=app.arguments();
  const int latencyIndex=argsForTray.indexOf("--tray-latency-smoke");
