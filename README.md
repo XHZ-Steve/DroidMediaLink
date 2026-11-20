@@ -2,7 +2,7 @@
 
 <h1><img src="docs/images/app-icon.png" width="32" height="32" alt="" /> DroidMediaLink</h1>
 
-**在 Windows 上查看手机音乐、控制播放、显示同步歌词。**
+**让电脑控制 Android 手机音乐：通过局域网同步播放状态与封面，集成 Windows SMTC、远程播放控制和桌面歌词。**
 
 [下载 v1.2.0](https://github.com/XHZ-Steve/DroidMediaLink/releases/tag/v1.2.0) · [English](README.en.md) · [使用方法](#开始使用) · [反馈问题](https://github.com/XHZ-Steve/DroidMediaLink/issues)
 
